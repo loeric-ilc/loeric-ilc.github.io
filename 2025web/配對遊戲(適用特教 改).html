@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>配對遊戲  (適用特教)</title>
+    <style>
+        /* --- 全域設定 --- */
+        body { 
+            font-family: "微軟正黑體", sans-serif; 
+            margin: 0; padding: 0; 
+            overflow: hidden; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            background-color: #f0f8ff;
+        }
+        
+        #blocker { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999; display: none; }
+
+        /* --- 起始畫面 --- */
+        #setup-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); 
+            padding: 20px; box-sizing: border-box;
+        }
+        .setup-box { 
+            background: white; padding: 30px; border-radius: 20px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; 
+            width: 90%; max-width: 420px; 
+            max-height: 95vh; overflow-y: auto; 
+        }
+        
+        .control-group { margin: 15px 0; text-align: left; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .control-group label { font-size: 1.1rem; font-weight: bold; display: block; margin-bottom: 8px; color: #333; }
+        .control-group select { width: 100%; padding: 10px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; background: #fff; }
+        
+        .btn-main { background-color: #4CAF50; color: white; padding: 12px 20px; font-size: 1.2rem; border: none; border-radius: 50px; cursor: pointer; margin-top: 10px; width: 100%; transition: transform 0.2s; }
+        .btn-main:active { transform: scale(0.95); }
+        .btn-main:disabled { background-color: #ccc; cursor: not-allowed; transform: none; }
+
+        /* --- 遊戲主畫面 --- */
+        #game-container { display: none; flex-direction: column; width: 100%; height: 100%; }
+
+        /* === 上半部 (題目區) === */
+        .top-zone {
+            flex: 5; 
+            background-color: #FFFDE7; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            border-bottom: 5px solid #FFD54F; 
+            position: relative;
+            padding: 10px;
+        }
+        
+        .info-bar { 
+            position: absolute; top: 10px; right: 10px; 
+            background: white; padding: 5px 15px; border-radius: 20px; 
+            border: 2px solid #FFD54F; 
+            font-size: clamp(0.8rem, 3vw, 1.2rem); 
+            font-weight: bold; color: #555; 
+        }
+        
+        /* 修改重點：增加 margin-bottom 把下方內容推遠，並稍微調整高度 */
+        .title-row { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            margin-bottom: 30px; /* 從 10px 改為 30px，拉開距離 */
+            height: 12%; 
+            transform: translateY(-5px); /* 稍微再往上提一點 */
+        }
+        
+        .target-name { font-size: clamp(1.5rem, 5vw, 2.5em); font-weight: bold; color: #333; margin: 0; min-width: 50px; text-align: center;}
+        
+        .play-btn { 
+            background-color: #2196F3; color: white; border: none; border-radius: 50%; 
+            width: clamp(40px, 8vw, 60px); height: clamp(40px, 8vw, 60px); 
+            font-size: clamp(1rem, 4vw, 1.5rem); 
+            cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 3px 5px rgba(0,0,0,0.2); 
+        }
+        .play-btn:active { transform: scale(0.9); }
+
+        .comparison-container { 
+            display: flex; align-items: center; justify-content: center; 
+            gap: clamp(10px, 3vw, 30px); 
+            position: relative; width: 100%;
+        }
+        
+        .img-box { 
+            border-radius: 10px; display: flex; align-items: center; justify-content: center; 
+            background: white; box-shadow: 0 3px 10px rgba(0,0,0,0.1); 
+            transition: all 0.3s ease; 
+        }
+        
+        .target-img { 
+            width: 25vmin; height: 25vmin; 
+            max-width: 220px; max-height: 220px;
+            object-fit: contain; border: 4px solid #333; 
+        }
+
+        .placeholder-box { 
+            width: 25vmin; height: 25vmin; 
+            max-width: 220px; max-height: 220px;
+            border: 4px dashed #aaa; background-color: rgba(255, 255, 255, 0.6); 
+            color: #aaa; font-size: clamp(0.8rem, 3vw, 1.5rem); 
+        }
+        .placeholder-box::after { content: "放這裡"; opacity: 0.5; }
+
+        .placeholder-box.wide-shape {
+            width: 30vmin; height: 12vmin; 
+            min-width: 160px; min-height: 60px; 
+            max-width: 280px; max-height: 100px;
+        }
+        
+        .feedback-area { width: 18vmin; height: 18vmin; max-width: 150px; max-height: 150px; display: flex; justify-content: center; align-items: center; }
+        .correct-circle { width: 80%; height: 80%; border: 10px solid #32CD32; border-radius: 50%; box-shadow: 0 0 10px rgba(50, 205, 50, 0.8); background-color: transparent; }
+        .wrong-mark { font-size: clamp(3rem, 15vmin, 7rem); font-weight: bold; color: #FF4500; text-shadow: 0px 0px 10px rgba(255,255,255,0.8); }
+
+        /* === 下半部 (選項區) === */
+        .bottom-zone { 
+            flex: 4; 
+            background-color: #E1F5FE; 
+            display: flex; justify-content: center; align-content: center; align-items: center; 
+            gap: 15px; box-shadow: inset 0 5px 15px rgba(0,0,0,0.05); padding: 10px; 
+            flex-wrap: wrap; 
+        }
+        
+        .option-wrapper { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        
+        .option-card { 
+            cursor: pointer; border: 3px solid #fff; border-radius: 10px; 
+            transition: transform 0.2s; background: white; 
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1); 
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
+        }
+        .option-card:active { transform: scale(0.95); border-color: #29B6F6; }
+        
+        .card-type-img {
+            width: 18vmin; height: 18vmin; 
+            max-width: 160px; max-height: 160px;
+            min-width: 100px; min-height: 100px;
+        }
+        .card-type-img img { width: 100%; height: 100%; object-fit: contain; }
+
+        .card-type-text {
+            width: 30vmin; height: 12vmin; 
+            min-width: 160px; min-height: 60px; 
+            max-width: 280px; max-height: 100px;
+        }
+
+        .text-mode-content { 
+            white-space: nowrap; font-size: clamp(1.2rem, 4vw, 2.0rem); font-weight: bold; color: #333; text-align: center; padding: 0 10px; 
+        }
+
+        .option-speak-btn { 
+            background-color: #FF9800; color: white; border: none; 
+            padding: 5px 12px; border-radius: 30px; font-size: clamp(0.8rem, 3vw, 1rem); 
+            cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+            display: flex; align-items: center; gap: 3px; 
+        }
+        .option-speak-btn:active { transform: translateY(2px); }
+
+        .moving { position: fixed; z-index: 100; transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1); pointer-events: none; border: 4px solid #333; border-radius: 15px; background: white; box-shadow: 0 15px 30px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; }
+        .moving .text-mode-content { font-size: clamp(1.5rem, 5vw, 2.5rem); }
+        
+        .highlight { animation: pulse 1.5s infinite; border-color: #32CD32 !important; box-shadow: 0 0 25px #32CD32; transform: scale(1.1); }
+        @keyframes pulse { 0% { transform: scale(1.1); } 50% { transform: scale(1.15); } 100% { transform: scale(1.1); } }
+        
+        #result-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1500; display: none; flex-direction: column; justify-content: center; align-items: center; background: rgba(255, 255, 255, 0.95); }
+        .result-box { width: 80%; max-width: 400px; text-align: center; background: white; padding: 30px; border-radius: 30px; border: 5px solid #FFD54F; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .score-text { font-size: clamp(2rem, 8vw, 3rem); color: #333; margin: 20px 0; }
+        .score-number { color: #FF4500; font-weight: bold; font-size: clamp(3rem, 10vw, 4rem); }
+        
+        .home-btn { position: absolute; top: 10px; left: 10px; padding: 5px 12px; background: rgba(255,255,255,0.8); border: 2px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 0.9rem; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div id="blocker"></div>
+    
+    <div id="setup-screen">
+        <div class="setup-box">
+            <h1 style="color:#333; margin-bottom: 5px; font-size: 1.8rem;">配對遊戲(適用特教)</h1>
+            <p style="color:#666; font-size:0.9rem; margin-bottom: 20px;">通用版</p>
+            <button class="btn-main" style="background:#2196F3;" onclick="document.getElementById('fileInput').click()">📂 步驟1：載入圖片</button>
+            <input type="file" id="fileInput" multiple accept="image/*" style="display: none;" onchange="handleFiles(this.files)">
+            <div id="fileInfo" style="margin-top:10px; color:#666; height: 20px; font-size: 0.9rem;">尚未載入</div>
+            <hr style="width: 100%; border: 1px solid #eee; margin: 15px 0;">
+            <div class="control-group">
+                <label>🎮 遊戲模式：</label>
+                <select id="gameModeSelect">
+                    <option value="img-img">圖片 配 圖片 (初階)</option>
+                    <option value="img-text">圖片 配 名稱 (進階)</option>
+                </select>
+                <small style="color:#888; display:block; margin-top:5px; font-size: 0.8rem;">* 進階模式題目會隱藏文字</small>
+            </div>
+            <div class="control-group">
+                <label>🔥 難度選擇：</label>
+                <select id="difficultySelect">
+                    <option value="2">2選1 (簡單)</option>
+                    <option value="3" selected>3選1 (中等)</option>
+                    <option value="4">4選1 (困難)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>🔢 題目數量：</label>
+                <select id="questionCountSelect">
+                    <option value="5">5 題</option>
+                    <option value="10" selected>10 題</option>
+                    <option value="20">20 題</option>
+                    <option value="999">全部考完</option>
+                </select>
+            </div>
+            <button id="startBtn" class="btn-main" onclick="startGame()" disabled>🚀 步驟2：開始遊戲</button>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div class="top-zone">
+            <button class="home-btn" onclick="location.reload()">🏠 回首頁</button>
+            <div class="info-bar">題數：<span id="qCountText">1 / 10</span></div>
+            <div class="title-row">
+                <div id="targetName" class="target-name">準備中...</div>
+                <button class="play-btn" onclick="speakTarget()" title="再聽一次">🔊</button>
+            </div>
+            <div class="comparison-container">
+                <div id="placeholderBox" class="img-box placeholder-box"></div>
+                <div id="feedbackArea" class="feedback-area"></div>
+            </div>
+        </div>
+        <div class="bottom-zone" id="optionsArea"></div>
+    </div>
+
+    <div id="result-screen">
+        <div class="result-box">
+            <h1 style="font-size: clamp(2rem, 5vw, 2.5rem); color: #4CAF50;">🎉 測驗結束！</h1>
+            <p class="score-text">答對題數：<br><span id="finalScore" class="score-number"></span> / <span id="finalTotal"></span></p>
+            <button class="btn-main" onclick="location.reload()">🔄 再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        let dbImages = [];
+        let currentQuestion = {};
+        let settingDifficulty = 3;
+        let settingTotalQ = 10;
+        let settingGameMode = 'img-img';
+        let currentQIndex = 0; 
+        let correctCount = 0;  
+        let isFirstAttempt = true; 
+        
+        const blocker = document.getElementById('blocker');
+        const synth = window.speechSynthesis;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playDingDong() {
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            const now = audioCtx.currentTime;
+            const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
+            osc1.connect(gain1); gain1.connect(audioCtx.destination);
+            osc1.frequency.value = 659.25; osc1.type = 'sine';
+            gain1.gain.setValueAtTime(0.5, now); gain1.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+            osc1.start(now); osc1.stop(now + 1.5);
+
+            const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+            osc2.connect(gain2); gain2.connect(audioCtx.destination);
+            osc2.frequency.value = 523.25; osc2.type = 'sine';
+            gain2.gain.setValueAtTime(0.5, now + 0.4); gain2.gain.exponentialRampToValueAtTime(0.001, now + 2);
+            osc2.start(now + 0.4); osc2.stop(now + 2);
+        }
+
+        function playBuzzer() {
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+            gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.4);
+        }
+
+        function playApplause() {
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            const now = audioCtx.currentTime;
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+            const clapCount = 50; 
+            for (let i = 0; i < clapCount; i++) {
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                const gain = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass'; filter.frequency.value = 1200;
+                source.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+                const startTime = now + Math.random() * 2;
+                const duration = 0.05 + Math.random() * 0.1;
+                source.start(startTime); source.stop(startTime + duration);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.2, startTime + 0.01); 
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            }
+        }
+
+        function handleFiles(files) {
+            if (files.length < 2) { alert("圖片太少無法出題！"); return; }
+            dbImages = [];
+            Array.from(files).forEach(file => {
+                const src = URL.createObjectURL(file);
+                const name = file.name.replace(/\.[^/.]+$/, "");
+                dbImages.push({ name: name, src: src });
+            });
+            document.getElementById('fileInfo').innerText = `已載入 ${dbImages.length} 張圖片`;
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        function startGame() {
+            settingDifficulty = parseInt(document.getElementById('difficultySelect').value);
+            settingTotalQ = parseInt(document.getElementById('questionCountSelect').value);
+            settingGameMode = document.getElementById('gameModeSelect').value;
+
+            if (dbImages.length < settingDifficulty) {
+                alert(`圖片數量不足，無法執行 ${settingDifficulty}選1。`);
+                return;
+            }
+            if (dbImages.length < settingTotalQ) settingTotalQ = dbImages.length;
+            if (settingTotalQ === 999) settingTotalQ = dbImages.length;
+
+            currentQIndex = 0;
+            correctCount = 0;
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            nextQuestion();
+        }
+
+        function speak(text) {
+            synth.cancel(); 
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW'; utterance.rate = 0.8; 
+            synth.speak(utterance);
+        }
+        function speakTarget() { if(currentQuestion.name) speak(currentQuestion.name); }
+
+        function nextQuestion() {
+            if (currentQIndex >= settingTotalQ) { showResult(); return; }
+            blocker.style.display = 'none';
+            document.getElementById('feedbackArea').innerHTML = '';
+            isFirstAttempt = true; 
+            currentQIndex++;
+            document.getElementById('qCountText').innerText = `${currentQIndex} / ${settingTotalQ}`;
+            
+            const targetIndex = Math.floor(Math.random() * dbImages.length);
+            currentQuestion = dbImages[targetIndex];
+            
+            //document.getElementById('targetImg').src = currentQuestion.src;
+            
+            const targetNameEl = document.getElementById('targetName');
+            targetNameEl.innerText = currentQuestion.name; 
+            
+            const placeholder = document.getElementById('placeholderBox');
+            if (settingGameMode === 'img-text') {
+                targetNameEl.style.visibility = 'hidden'; 
+                placeholder.classList.add('wide-shape'); 
+            } else {
+                targetNameEl.style.visibility = 'visible'; 
+                placeholder.classList.remove('wide-shape'); 
+            }
+
+            setTimeout(() => speak(currentQuestion.name), 600);
+
+            let options = [currentQuestion];
+            let remaining = dbImages.filter(img => img.name !== currentQuestion.name);
+            for(let i=0; i < (settingDifficulty - 1); i++) {
+                if(remaining.length === 0) break; 
+                const wrongIndex = Math.floor(Math.random() * remaining.length);
+                options.push(remaining[wrongIndex]);
+                remaining.splice(wrongIndex, 1);
+            }
+            options.sort(() => Math.random() - 0.5);
+
+            const optionsArea = document.getElementById('optionsArea');
+            optionsArea.innerHTML = '';
+            
+            options.forEach(opt => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'option-wrapper';
+                const card = document.createElement('div');
+                card.className = 'option-card';
+                card.dataset.name = opt.name;
+                
+                if (settingGameMode === 'img-img') {
+                    card.classList.add('card-type-img');
+                    const img = document.createElement('img');
+                    img.src = opt.src;
+                    card.appendChild(img);
+                } else {
+                    card.classList.add('card-type-text');
+                    const span = document.createElement('span');
+                    span.className = 'text-mode-content';
+                    span.innerText = opt.name;
+                    card.appendChild(span);
+                }
+                card.onclick = (e) => handleAnswer(e, card, opt);
+
+                const speakBtn = document.createElement('button');
+                speakBtn.className = 'option-speak-btn';
+                speakBtn.innerHTML = '🔊 聽聽看';
+                speakBtn.onclick = (e) => { e.stopPropagation(); speak(opt.name); };
+
+                wrapper.appendChild(card);
+                wrapper.appendChild(speakBtn);
+                optionsArea.appendChild(wrapper);
+            });
+        }
+
+        function handleAnswer(e, cardElement, optionData) {
+            blocker.style.display = 'block';
+            const rectStart = cardElement.getBoundingClientRect();
+            const rectEnd = document.getElementById('placeholderBox').getBoundingClientRect();
+            
+            const clone = cardElement.cloneNode(true);
+            clone.classList.add('moving');
+            
+            clone.style.width = rectStart.width + 'px';
+            clone.style.height = rectStart.height + 'px';
+            clone.style.left = rectStart.left + 'px';
+            clone.style.top = rectStart.top + 'px';
+            document.body.appendChild(clone);
+
+            requestAnimationFrame(() => {
+                clone.style.left = rectEnd.left + 'px';
+                clone.style.top = rectEnd.top + 'px';
+                
+                if (settingGameMode === 'img-text') {
+                     clone.style.width = rectEnd.width + 'px';
+                     clone.style.height = rectEnd.height + 'px';
+                     clone.style.display = 'flex';
+                     clone.style.alignItems = 'center';
+                     clone.style.justifyContent = 'center';
+                } else {
+                    clone.style.width = rectEnd.width + 'px';
+                    clone.style.height = rectEnd.height + 'px';
+                }
+            });
+
+            setTimeout(() => {
+                const isCorrect = (optionData.name === currentQuestion.name);
+                const feedbackArea = document.getElementById('feedbackArea');
+
+                if (isCorrect) {
+                    playDingDong(); 
+                    if (isFirstAttempt) correctCount++;
+                    feedbackArea.innerHTML = '<div class="correct-circle"></div>';
+                    setTimeout(() => speak("答對了!!你好棒!!"), 500);
+                    setTimeout(() => { clone.remove(); nextQuestion(); }, 4000); 
+                } else {
+                    playBuzzer();
+                    isFirstAttempt = false; 
+                    feedbackArea.innerHTML = '<span class="wrong-mark">❌</span>';
+                    setTimeout(() => speak("不對唷!!請看清楚再選!!"), 500);
+                    setTimeout(() => {
+                        clone.remove(); feedbackArea.innerHTML = ''; blocker.style.display = 'none';
+                        const correctCard = Array.from(document.querySelectorAll('.option-card'))
+                            .find(el => el.dataset.name === currentQuestion.name);
+                        if (correctCard) { correctCard.classList.add('highlight'); setTimeout(() => correctCard.classList.remove('highlight'), 2000); }
+                    }, 3000); 
+                }
+            }, 600);
+        }
+
+        function showResult() {
+            document.getElementById('finalScore').innerText = correctCount;
+            document.getElementById('finalTotal').innerText = settingTotalQ;
+            document.getElementById('result-screen').style.display = 'flex';
+            playApplause(); 
+            setTimeout(() => speak("測驗結束，你好棒！"), 1000);
+        }
+    </script>
+</body>
+</html>
