@@ -3,509 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>趣味數量50練習 (挑戰等級)</title>
+    <title>2025 互動遊戲學習入口網</title>
     <style>
         :root {
-            --bg-color: #f0f8ff;
-            --btn-color: #4e73df;
-            --highlight-bg: rgba(255, 230, 0, 0.6);
-            --user-counted-bg: #d1e7dd; 
-            --number-badge-color: #ff4757;
+            --primary-color: #6a11cb;
+            --secondary-color: #2575fc;
+            --accent-color: #ff9a9e;
+            --text-color: #333;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            font-family: '微軟正黑體', sans-serif;
-            background-color: var(--bg-color);
+            font-family: "Microsoft JhengHei", "Heiti TC", sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-            position: relative;
+            color: var(--text-color);
         }
 
-        .screen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+        /* Header Section */
+        header {
+            text-align: center;
+            padding: 60px 20px 40px;
             width: 100%;
-            height: 100%;
-        }
-        
-        .active { display: flex; }
-
-        h1 { color: #333; margin-bottom: 30px; }
-        
-        .menu-btn {
-            background-color: white;
-            border: 2px solid var(--btn-color);
-            color: var(--btn-color);
-            padding: 15px 40px;
-            margin: 10px;
-            font-size: 1.5rem;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: bold;
-            width: 280px;
-        }
-
-        .menu-btn:hover {
-            background-color: var(--btn-color);
+            background: linear-gradient(120deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-        }
-
-        #status-bar {
-            width: 90%;
-            max-width: 900px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 1.2rem;
-            color: #555;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        #feedback {
-            margin: 5px 0;
-            font-size: 1.5rem;
-            font-weight: bold;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333;
-            transition: all 0.3s ease;
-        }
-
-        .feedback-large {
-            font-size: 3.5rem !important;
-            color: var(--btn-color) !important;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
-        }
-
-        /* --- 顯示區域設定 (回復為純 Grid 排列) --- */
-        #display-area {
-            width: 95%;
-            max-width: 850px;
-            height: 55vh;
-            background: white;
-            border-radius: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            padding: 20px;
-            
-            /* 使用 Grid 強制 10 欄，但沒有額外的框框 */
+            margin-bottom: 40px;
+            border-bottom-left-radius: 30px;
+            border-bottom-right-radius: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        /* Container */
+        .container {
+            width: 90%;
+            max-width: 1000px;
             display: grid;
-            grid-template-columns: repeat(10, 1fr); 
-            gap: 5px; 
-            align-content: start; 
-            justify-items: center;
-            
-            overflow-y: auto;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            padding-bottom: 60px;
         }
 
-        .item {
-            font-size: 2rem;
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            user-select: none;
+        /* Card Design */
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
             position: relative;
-            border-radius: 10px;
-            transition: transform 0.1s;
-            cursor: pointer;
-        }
-
-        .item:active { transform: scale(0.9); }
-
-        .counting-highlight {
-            background-color: var(--highlight-bg);
-            transform: scale(1.2) !important;
-            z-index: 100;
-            box-shadow: 0 0 10px gold;
-            border-radius: 50%;
-        }
-
-        .user-counted {
-            background-color: var(--user-counted-bg);
-            border: 2px solid #a3cfbb;
-            border-radius: 50%;
-        }
-
-        .item::after {
-            content: attr(data-count);
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: var(--number-badge-color);
-            color: white;
-            font-size: 0.8rem;
-            font-weight: bold;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-            animation: popIn 0.3s;
-            z-index: 101;
-        }
-
-        .item[data-count]::after { display: flex; }
-
-        @keyframes popIn {
-            from { transform: scale(0); }
-            to { transform: scale(1); }
-        }
-
-        #options-area {
-            margin-top: 15px;
+            border: 1px solid rgba(0,0,0,0.02);
             display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
+            flex-direction: column;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(37, 117, 252, 0.2);
+        }
+
+        .card-icon {
+            height: 120px;
+            display: flex;
+            align-items: center;
             justify-content: center;
+            font-size: 4rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
         }
 
-        .option-btn {
-            background-color: var(--btn-color);
+        .card-body {
+            padding: 25px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            text-align: center;
+            background: var(--secondary-color);
             color: white;
-            border: none;
-            border-radius: 15px;
-            padding: 10px 30px;
-            min-width: 90px;
-            font-size: 2rem;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #2e59d9;
-            transition: all 0.3s;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: bold;
+            transition: background 0.2s;
         }
 
-        .option-btn:active { transform: translateY(4px); box-shadow: none; }
-        
-        .option-btn:disabled { 
-            background-color: #ddd; 
-            box-shadow: none; 
-            color: #999; 
-            cursor: not-allowed; 
-            opacity: 0.6;
-        }
-        
-        .correct { background-color: #28a745 !important; box-shadow: 0 4px 0 #1e7e34 !important; }
-        .wrong { background-color: #dc3545 !important; box-shadow: 0 4px 0 #bd2130 !important; }
-
-        .suggest-correct {
-            background-color: #28a745 !important;
-            transform: scale(1.2);
-            box-shadow: 0 0 15px #28a745 !important;
-            animation: pulse 1.5s infinite;
-            z-index: 50;
+        .btn:hover {
+            background: var(--primary-color);
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1.2); }
-            50% { transform: scale(1.3); }
-            100% { transform: scale(1.2); }
+        /* Specific Colors based on context */
+        .card:nth-child(1) .card-icon { background: #e3f2fd; color: #2196f3; }
+        .card:nth-child(2) .card-icon { background: #fff3e0; color: #ff9800; }
+        .card:nth-child(3) .card-icon { background: #fce4ec; color: #e91e63; }
+        .card:nth-child(4) .card-icon { background: #e8f5e9; color: #4caf50; }
+
+        /* Footer */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            color: #888;
+            font-size: 0.8rem;
         }
 
-        .final-score { font-size: 4rem; color: #e74a3b; font-weight: bold; margin: 20px 0; }
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            .container { width: 95%; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="menu-screen" class="screen active">
-        <h1>請選擇挑戰等級</h1>
-        <button class="menu-btn" onclick="startGame(1, 5)">超初級 (1 ~ 5)</button>
-        <button class="menu-btn" onclick="startGame(1, 10)">初級 (1 ~ 10)</button>
-        <button class="menu-btn" onclick="startGame(11, 20)">中級 (11 ~ 20)</button>
-        <button class="menu-btn" onclick="startGame(21, 30)">高級 (21 ~ 30)</button>
-        <button class="menu-btn" onclick="startGame(31, 40)">挑戰 (31 ~ 40)</button>
-        <button class="menu-btn" onclick="startGame(41, 50)">大師 (41 ~ 50)</button>
-    </div>
+    <header>
+        <h1>🎮 2025 互動遊戲入口網</h1>
+        <p>歡迎來到數位學習遊樂場，請選擇下方的活動開始體驗！</p>
+    </header>
 
-    <div id="game-screen" class="screen">
-        <div id="status-bar">
-            <span id="score-display">得分: 0</span>
-            <span id="progress-display">題目: 1 / 10</span>
+    <div class="container">
+        
+        <div class="card">
+            <div class="card-icon">
+                🔢
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">Coin Count (Basic)</h3>
+                    <p class="card-desc">基礎數錢練習，適合初學者熟悉硬幣計算。</p>
+                </div>
+                <a href="2025web/coin.count.-.2col.html" class="btn">開始練習</a>
+            </div>
         </div>
-        <div id="feedback">請用手點一點，數數看有多少？</div>
-        
-        <div id="display-area"></div>
-        
-        <div id="options-area"></div>
+
+        <div class="card">
+            <div class="card-icon">
+                ✨
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">Coin Count (Sparkle)</h3>
+                    <p class="card-desc">進階雙欄位數錢挑戰，介面更加活潑。</p>
+                </div>
+                <a href="2025web/✨ coin count - 2col✨ .html" class="btn">進入挑戰</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">
+                💰
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">可愛數錢大挑戰</h3>
+                    <p class="card-desc">結合趣味元素的數錢遊戲，讓學習更有動力！</p>
+                </div>
+                <a href="2025web/✨ 可愛數錢大挑戰 ✨.html" class="btn">馬上玩</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">
+                🧩
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">配對遊戲 (特教版)</h3>
+                    <p class="card-desc">專為特殊教育設計的認知配對練習，介面友善直觀。</p>
+                </div>
+                <a href="2025web/配對遊戲(適用特教 改).html" class="btn">開始配對</a>
+            </div>
+        </div>
+
     </div>
 
-    <div id="result-screen" class="screen">
-        <h1>挑戰完成！</h1>
-        <div>您的得分是</div>
-        <div class="final-score" id="final-score-text">100</div>
-        <button class="menu-btn" onclick="showMenu()">回首頁</button>
-    </div>
+    <footer>
+        &copy; 2025 Interactive Learning Portal. Created for Educational Purpose.
+    </footer>
 
-    <script>
-        const TOTAL_QUESTIONS_PER_ROUND = 10;
-        
-        const categories = {
-            stationery: ['✏️', '📏', '✂️', '🖊️', '📓', '📎'],
-            fruit: ['🍎', '🍌', '🍇', '🍊', '🍓', '🍑'],
-            others: ['🏀', '🚗', '🎈', '⭐', '🧸', '🚲']
-        };
-
-        let currentLevelMin = 1;
-        let currentLevelMax = 10;
-        let currentQuestionIndex = 0;
-        let currentScore = 0;
-        
-        let currentCount = 0;
-        let userClickCount = 0;
-        let isSystemGuiding = false;
-        let isAnswered = false; 
-        let isRetryMode = false;
-
-        const synth = window.speechSynthesis;
-
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
-
-        function showMenu() {
-            showScreen('menu-screen');
-        }
-
-        function startGame(min, max) {
-            currentLevelMin = min;
-            currentLevelMax = max;
-            currentQuestionIndex = 0;
-            currentScore = 0;
-            showScreen('game-screen');
-            generateQuestion();
-        }
-
-        function updateStatusBar() {
-            document.getElementById('score-display').innerText = `得分: ${currentScore}`;
-            document.getElementById('progress-display').innerText = `題目: ${currentQuestionIndex + 1} / ${TOTAL_QUESTIONS_PER_ROUND}`;
-        }
-
-        function endGame() {
-            showScreen('result-screen');
-            const finalScore = (currentScore / TOTAL_QUESTIONS_PER_ROUND) * 100;
-            document.getElementById('final-score-text').innerText = Math.round(finalScore);
-            let comment = finalScore === 100 ? "太厲害了！" : "表現很棒喔！";
-            speakSimple(`挑戰完成，${comment}`);
-        }
-
-        function generateQuestion() {
-            if (currentQuestionIndex >= TOTAL_QUESTIONS_PER_ROUND) {
-                endGame();
-                return;
-            }
-
-            updateStatusBar();
-            synth.cancel();
-
-            const displayArea = document.getElementById('display-area');
-            const optionsArea = document.getElementById('options-area');
-            const feedback = document.getElementById('feedback');
-            
-            displayArea.innerHTML = '';
-            optionsArea.innerHTML = '';
-            feedback.className = '';
-            feedback.innerText = '請用手點一點，數數看有多少？';
-            feedback.style.color = '#333';
-            
-            isSystemGuiding = false;
-            isAnswered = false;
-            isRetryMode = false;
-            userClickCount = 0;
-
-            currentCount = Math.floor(Math.random() * (currentLevelMax - currentLevelMin + 1)) + currentLevelMin;
-
-            const categoryKeys = Object.keys(categories);
-            const randomCategory = categoryKeys[Math.floor(Math.random() * categoryKeys.length)];
-            const items = categories[randomCategory];
-            const randomItemChar = items[Math.floor(Math.random() * items.length)];
-
-            // --- 回歸純粹的迴圈生成 (無群組框框) ---
-            for (let i = 0; i < currentCount; i++) {
-                const div = document.createElement('div');
-                div.classList.add('item');
-                div.innerText = randomItemChar;
-                div.id = `item-${i}`;
-                div.onclick = function() { handleUserTap(div); };
-                displayArea.appendChild(div);
-            }
-
-            let options = [currentCount];
-            while (options.length < 3) {
-                let offset = Math.floor(Math.random() * 9) - 4;
-                let wrongOption = currentCount + offset;
-                if (wrongOption > 0 && !options.includes(wrongOption)) {
-                    options.push(wrongOption);
-                }
-            }
-            options.sort(() => Math.random() - 0.5);
-
-            options.forEach(num => {
-                const btn = document.createElement('button');
-                btn.classList.add('option-btn');
-                btn.innerText = num;
-                btn.setAttribute('data-val', num);
-                btn.onclick = () => checkAnswer(btn, num);
-                optionsArea.appendChild(btn);
-            });
-        }
-
-        function handleUserTap(item) {
-            if (isAnswered || isSystemGuiding) return;
-
-            if (!item.classList.contains('user-counted')) {
-                userClickCount++;
-                item.classList.add('user-counted');
-                item.setAttribute('data-count', userClickCount);
-                speakSimple(userClickCount.toString());
-            }
-        }
-
-        function checkAnswer(btn, selectedNum) {
-            if (isSystemGuiding) return;
-            
-            if (isAnswered && isRetryMode && selectedNum === currentCount) {
-                handleCorrect(btn, false);
-                return;
-            }
-
-            if (isAnswered) return;
-
-            isAnswered = true; 
-
-            if (selectedNum === currentCount) {
-                handleCorrect(btn, true);
-            } else {
-                btn.classList.add('wrong');
-                document.getElementById('feedback').innerText = '不對喔，我們一起來數數看！';
-                document.getElementById('feedback').style.color = '#dc3545';
-                
-                // 語音完整性確保機制
-                const errMsg = new SpeechSynthesisUtterance("不對喔，我們一起來數數看");
-                errMsg.lang = 'zh-TW';
-                
-                synth.cancel();
-                
-                errMsg.onend = function() {
-                    startGuidedCounting();
-                };
-                
-                synth.speak(errMsg);
-                
-                const allItems = document.querySelectorAll('.item');
-                allItems.forEach(item => {
-                    item.classList.remove('user-counted');
-                    item.removeAttribute('data-count');
-                });
-            }
-        }
-
-        function handleCorrect(btn, addScore) {
-            const feedback = document.getElementById('feedback');
-            
-            btn.classList.remove('suggest-correct');
-            btn.classList.add('correct');
-            
-            feedback.innerText = '太棒了！答對了！';
-            feedback.style.color = 'green';
-            
-            if (addScore) currentScore++;
-            
-            speakSimple("太棒了，答對了");
-            
-            setTimeout(() => {
-                currentQuestionIndex++;
-                generateQuestion();
-            }, 1500);
-        }
-
-        function startGuidedCounting() {
-            isSystemGuiding = true;
-            
-            const buttons = document.querySelectorAll('.option-btn');
-            const feedback = document.getElementById('feedback');
-            
-            buttons.forEach(b => b.disabled = true);
-            feedback.classList.add('feedback-large');
-
-            let count = 0;
-
-            function playNext() {
-                if (count >= currentCount) {
-                    finishCounting();
-                    return;
-                }
-
-                const currentItem = document.getElementById(`item-${count}`);
-                if (currentItem) {
-                    currentItem.classList.add('counting-highlight');
-                    currentItem.setAttribute('data-count', count + 1);
-                    // 這裡可以視情況開啟，如果螢幕夠大可能不需要
-                    // currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-
-                feedback.innerText = count + 1;
-
-                const utterance = new SpeechSynthesisUtterance((count + 1).toString());
-                utterance.lang = 'zh-TW';
-                utterance.rate = 0.9;
-
-                utterance.onend = function() {
-                    if (currentItem) {
-                        currentItem.classList.remove('counting-highlight');
-                    }
-                    count++;
-                    setTimeout(playNext, 100);
-                };
-
-                synth.speak(utterance);
-            }
-
-            playNext();
-            
-            function finishCounting() {
-                isSystemGuiding = false;
-                isRetryMode = true;
-                
-                feedback.classList.remove('feedback-large');
-                feedback.innerText = `共有 ${currentCount} 個，請選出正確的答案！`;
-                
-                const finalMsg = new SpeechSynthesisUtterance(`共有 ${currentCount} 個，請選出正確的答案`);
-                finalMsg.lang = 'zh-TW';
-                synth.speak(finalMsg);
-
-                buttons.forEach(b => {
-                    const btnVal = parseInt(b.getAttribute('data-val'));
-                    if (btnVal === currentCount) {
-                        b.disabled = false;
-                        b.classList.add('suggest-correct');
-                    } else {
-                        b.disabled = true;
-                        b.style.opacity = '0.3';
-                    }
-                });
-            }
-        }
-
-        function speakSimple(text) {
-            synth.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-TW';
-            synth.speak(utterance);
-        }
-
-        window.onload = showMenu;
-
-    </script>
 </body>
 </html>
