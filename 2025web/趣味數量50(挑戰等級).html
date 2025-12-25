@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>趣味數量50練習 (挑戰等級)</title>
+    <title>趣味數量50練習 (透明回饋版)</title>
     <style>
         :root {
             --bg-color: #f0f8ff;
@@ -22,7 +22,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            overflow: hidden;
+            overflow: hidden; /* 防止整個網頁捲動 */
             position: relative;
         }
 
@@ -39,6 +39,41 @@
 
         h1 { color: #333; margin-bottom: 30px; }
         
+        /* --- 全螢幕 O / X 遮罩 (修改：背景透明) --- */
+        #overlay-feedback {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999; /* 最上層 */
+            display: none; /* 預設隱藏 */
+            justify-content: center;
+            align-items: center;
+            font-size: 30rem; /* 字體放大 */
+            font-weight: bold;
+            
+            /* 預設透明背景 */
+            background-color: transparent; 
+            
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none; /* 讓點擊可以穿透 (雖然顯示時通常不點擊) */
+        }
+
+        /* 答對：綠色圈圈，無背景，加白邊凸顯 */
+        .overlay-correct {
+            color: #28a745; 
+            text-shadow: 0 0 30px rgba(255, 255, 255, 1), 4px 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 答錯：紅色叉叉，無背景，加白邊凸顯 */
+        .overlay-wrong {
+            color: #dc3545;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 1), 4px 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* --- 選單按鈕 --- */
         .menu-btn {
             background-color: white;
             border: 2px solid var(--btn-color);
@@ -87,38 +122,39 @@
             text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
         }
 
-        /* --- 顯示區域設定 (回復為純 Grid 排列) --- */
+        /* --- 顯示區域設定 (絕對不捲動) --- */
         #display-area {
             width: 95%;
-            max-width: 850px;
-            height: 55vh;
+            max-width: 1050px;
+            height: 90vh; /* 固定高度區域 */
             background: white;
             border-radius: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            padding: 20px;
+            padding: 15px;
             
-            /* 使用 Grid 強制 10 欄，但沒有額外的框框 */
             display: grid;
-            grid-template-columns: repeat(10, 1fr); 
-            gap: 5px; 
-            align-content: start; 
-            justify-items: center;
+            /* 這裡的 columns 由 JS 動態控制 */
+            gap: 2px; /* 間距縮小以塞入更多 */
             
-            overflow-y: auto;
+            /* 內容垂直置中，且不產生捲軸 */
+            align-content: center; 
+            //justify-items: center;
+            overflow: hidden; 
         }
 
         .item {
-            font-size: 2rem;
+            /* 字體大小由 JS 動態控制 */
+            font-size: 3rem; 
             width: 100%;
-            aspect-ratio: 1 / 1;
+            height: 100%; /* 填滿格子 */
             display: flex;
             justify-content: center;
             align-items: center;
             user-select: none;
             position: relative;
-            border-radius: 10px;
-            transition: transform 0.1s;
             cursor: pointer;
+            line-height: 1; 
+            transition: transform 0.1s;
         }
 
         .item:active { transform: scale(0.9); }
@@ -137,22 +173,23 @@
             border-radius: 50%;
         }
 
+        /* 右上角紅色計數球 */
         .item::after {
             content: attr(data-count);
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: 0;
+            right: 0;
             background-color: var(--number-badge-color);
             color: white;
-            font-size: 0.8rem;
-            font-weight: bold;
-            width: 20px;
-            height: 20px;
+            /* 使用 em 單位，隨 emoji 大小縮放 */
+            font-size: 0.35em; 
+            width: 1.6em;
+            height: 1.6em;
             border-radius: 50%;
-            display: none;
+            display: none; /* 預設隱藏 */
             justify-content: center;
             align-items: center;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
             animation: popIn 0.3s;
             z-index: 101;
         }
@@ -167,9 +204,11 @@
         #options-area {
             margin-top: 15px;
             display: flex;
-            gap: 15px;
+            gap: 20px;
             flex-wrap: wrap;
             justify-content: center;
+            height: 15vh;
+            align-items: center;
         }
 
         .option-btn {
@@ -177,12 +216,16 @@
             color: white;
             border: none;
             border-radius: 15px;
-            padding: 10px 30px;
-            min-width: 90px;
-            font-size: 2rem;
+            padding: 15px 90px;
+            min-width: 140px;
+            height: 140px;
+            font-size: 8rem;
             cursor: pointer;
             box-shadow: 0 4px 0 #2e59d9;
-            transition: all 0.3s;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .option-btn:active { transform: translateY(4px); box-shadow: none; }
@@ -192,30 +235,29 @@
             box-shadow: none; 
             color: #999; 
             cursor: not-allowed; 
-            opacity: 0.6;
+            opacity: 0.8; 
         }
         
-        .correct { background-color: #28a745 !important; box-shadow: 0 4px 0 #1e7e34 !important; }
-        .wrong { background-color: #dc3545 !important; box-shadow: 0 4px 0 #bd2130 !important; }
-
         .suggest-correct {
             background-color: #28a745 !important;
-            transform: scale(1.2);
+            transform: scale(1.1);
             box-shadow: 0 0 15px #28a745 !important;
             animation: pulse 1.5s infinite;
             z-index: 50;
         }
 
         @keyframes pulse {
-            0% { transform: scale(1.2); }
-            50% { transform: scale(1.3); }
-            100% { transform: scale(1.2); }
+            0% { transform: scale(1.1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1.1); }
         }
 
         .final-score { font-size: 4rem; color: #e74a3b; font-weight: bold; margin: 20px 0; }
     </style>
 </head>
 <body>
+
+    <div id="overlay-feedback"></div>
 
     <div id="menu-screen" class="screen active">
         <h1>請選擇挑戰等級</h1>
@@ -252,7 +294,7 @@
         const categories = {
             stationery: ['✏️', '📏', '✂️', '🖊️', '📓', '📎'],
             fruit: ['🍎', '🍌', '🍇', '🍊', '🍓', '🍑'],
-            others: ['🏀', '🚗', '🎈', '⭐', '🧸', '🚲']
+            others: ['🏀', '🚗', '🎈', '⭐', '🧸', '🚲', '🐶', '🐱', '🐢']
         };
 
         let currentLevelMin = 1;
@@ -267,6 +309,7 @@
         let isRetryMode = false;
 
         const synth = window.speechSynthesis;
+        const overlay = document.getElementById('overlay-feedback');
 
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -323,6 +366,10 @@
             isRetryMode = false;
             userClickCount = 0;
 
+            // 確保 O/X 遮罩是隱藏的
+            overlay.style.display = 'none';
+            overlay.className = '';
+
             currentCount = Math.floor(Math.random() * (currentLevelMax - currentLevelMin + 1)) + currentLevelMin;
 
             const categoryKeys = Object.keys(categories);
@@ -330,16 +377,40 @@
             const items = categories[randomCategory];
             const randomItemChar = items[Math.floor(Math.random() * items.length)];
 
-            // --- 回歸純粹的迴圈生成 (無群組框框) ---
+            // --- 精密計算版面 (確保不捲動) ---
+            // 邏輯：數量越多，欄數越多，字體越小
+            let cols = 5;
+            let fontSize = "8rem";
+
+            if (currentCount <= 5) {
+                cols = 5; fontSize = "7rem";
+            } else if (currentCount <= 12) {
+                cols = 4; fontSize = "6.5rem"; // 4x3
+            } else if (currentCount <= 20) {
+                cols = 5; fontSize = "5rem";   // 5x4
+            } else if (currentCount <= 30) {
+                cols = 6; fontSize = "4rem";   // 6x5
+            } else if (currentCount <= 40) {
+                cols = 8; fontSize = "3.2rem"; // 8x5
+            } else {
+                // 41-50
+                cols = 10; fontSize = "2.8rem"; // 10x5
+            }
+            fontSize = "8rem";
+
+            displayArea.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
             for (let i = 0; i < currentCount; i++) {
                 const div = document.createElement('div');
                 div.classList.add('item');
                 div.innerText = randomItemChar;
+                div.style.fontSize = fontSize;
                 div.id = `item-${i}`;
                 div.onclick = function() { handleUserTap(div); };
                 displayArea.appendChild(div);
             }
 
+            // --- 產生選項 ---
             let options = [currentCount];
             while (options.length < 3) {
                 let offset = Math.floor(Math.random() * 9) - 4;
@@ -371,37 +442,65 @@
             }
         }
 
+        // --- 顯示全螢幕 O / X 動畫函數 ---
+        function showFullFeedback(isCorrect, callback) {
+            overlay.style.display = 'flex';
+            // 強制重繪以觸發 transition
+            void overlay.offsetWidth;
+            
+            if (isCorrect) {
+                overlay.className = 'overlay-correct';
+                overlay.innerText = 'O';
+                overlay.style.opacity = '1';
+                speakSimple("太棒了，答對了");
+            } else {
+                overlay.className = 'overlay-wrong';
+                overlay.innerText = '❌';
+                overlay.style.opacity = '1';
+                // 這裡先不唸語音，避免跟 "不對喔" 衝突
+            }
+
+            setTimeout(() => {
+                overlay.style.opacity = '0';
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    if (callback) callback();
+                }, 900); // 等待淡出動畫結束
+            }, 2000); // 顯示多久，縮短一點避免等待太久
+        }
+
         function checkAnswer(btn, selectedNum) {
             if (isSystemGuiding) return;
             
+            // 重試模式下答對
             if (isAnswered && isRetryMode && selectedNum === currentCount) {
                 handleCorrect(btn, false);
                 return;
             }
 
             if (isAnswered) return;
-
             isAnswered = true; 
 
             if (selectedNum === currentCount) {
                 handleCorrect(btn, true);
             } else {
-                btn.classList.add('wrong');
-                document.getElementById('feedback').innerText = '不對喔，我們一起來數數看！';
-                document.getElementById('feedback').style.color = '#dc3545';
+                // --- 答錯流程 ---
+                showFullFeedback(false, function() {
+                    // 全螢幕 X 消失後執行：
+                    btn.classList.add('wrong'); // 按鈕變紅
+                    document.getElementById('feedback').innerText = '不對喔，我們一起來數數看！';
+                    document.getElementById('feedback').style.color = '#dc3545';
+                    
+                    const errMsg = new SpeechSynthesisUtterance("不對喔，我們一起來數數看");
+                    errMsg.lang = 'zh-TW';
+                    
+                    errMsg.onend = function() {
+                        startGuidedCounting();
+                    };
+                    synth.speak(errMsg);
+                });
                 
-                // 語音完整性確保機制
-                const errMsg = new SpeechSynthesisUtterance("不對喔，我們一起來數數看");
-                errMsg.lang = 'zh-TW';
-                
-                synth.cancel();
-                
-                errMsg.onend = function() {
-                    startGuidedCounting();
-                };
-                
-                synth.speak(errMsg);
-                
+                // 清除之前的計數
                 const allItems = document.querySelectorAll('.item');
                 allItems.forEach(item => {
                     item.classList.remove('user-counted');
@@ -413,20 +512,20 @@
         function handleCorrect(btn, addScore) {
             const feedback = document.getElementById('feedback');
             
-            btn.classList.remove('suggest-correct');
-            btn.classList.add('correct');
-            
-            feedback.innerText = '太棒了！答對了！';
-            feedback.style.color = 'green';
-            
-            if (addScore) currentScore++;
-            
-            speakSimple("太棒了，答對了");
-            
-            setTimeout(() => {
-                currentQuestionIndex++;
-                generateQuestion();
-            }, 1500);
+            // --- 答對流程 ---
+            showFullFeedback(true, function() {
+                // 全螢幕 O 消失後執行：
+                btn.classList.add('suggest-correct'); // 按鈕發光
+                feedback.innerText = '太棒了！答對了！';
+                feedback.style.color = 'green';
+                
+                if (addScore) currentScore++;
+                
+                setTimeout(() => {
+                    currentQuestionIndex++;
+                    generateQuestion();
+                }, 500);
+            });
         }
 
         function startGuidedCounting() {
@@ -450,22 +549,20 @@
                 if (currentItem) {
                     currentItem.classList.add('counting-highlight');
                     currentItem.setAttribute('data-count', count + 1);
-                    // 這裡可以視情況開啟，如果螢幕夠大可能不需要
-                    // currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
 
                 feedback.innerText = count + 1;
 
                 const utterance = new SpeechSynthesisUtterance((count + 1).toString());
                 utterance.lang = 'zh-TW';
-                utterance.rate = 0.9;
+                utterance.rate = 1; 
 
                 utterance.onend = function() {
                     if (currentItem) {
                         currentItem.classList.remove('counting-highlight');
                     }
                     count++;
-                    setTimeout(playNext, 100);
+                    setTimeout(playNext, 80);
                 };
 
                 synth.speak(utterance);
@@ -491,7 +588,9 @@
                         b.classList.add('suggest-correct');
                     } else {
                         b.disabled = true;
-                        b.style.opacity = '0.3';
+                        if (!b.classList.contains('wrong')) {
+                            b.style.opacity = '0.3';
+                        }
                     }
                 });
             }
