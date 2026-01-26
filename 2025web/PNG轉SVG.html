@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG 轉 SVG 轉換器</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- ImageTracerJS (Primary & Backup) -->
+    <script>
+        // 動態載入 ImageTracer 函式庫
+        function loadImageTracer() {
+            const primary = 'https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js';
+            const backup = 'https://cdnjs.cloudflare.com/ajax/libs/imagetracerjs/1.2.6/imagetracer_v1.2.6.min.js';
+            
+            function loadScript(src) {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = () => resolve();
+                    script.onerror = () => reject();
+                    document.head.appendChild(script);
+                });
+            }
+
+            loadScript(primary)
+                .then(() => {
+                    console.log('ImageTracer loaded via Primary CDN');
+                    window.libraryLoaded = true;
+                })
+                .catch(() => {
+                    console.log('Primary CDN failed, trying backup...');
+                    loadScript(backup)
+                        .then(() => {
+                            console.log('ImageTracer loaded via Backup CDN');
+                            window.libraryLoaded = true;
+                        })
+                        .catch(() => {
+                            alert('無法載入轉換核心程式庫，請檢查網路連線。');
+                        });
+                });
+        }
+        loadImageTracer();
+    </script>
+
+    <style>
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+        }
+        .checkerboard {
+            background-image: url('https://www.transparenttextures.com/patterns/white-diamond.png');
+            background-color: white;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900 py-12 px-4 sm:px-6">
+
+    <div class="max-w-5xl mx-auto space-y-8">
+        
+        <!-- Header -->
+        <div class="text-center space-y-4">
+            <div class="inline-flex items-center justify-center p-3 bg-indigo-600 rounded-2xl shadow-lg mb-2">
+                <i data-lucide="refresh-cw" class="w-8 h-8 text-white"></i>
+            </div>
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">
+                PNG 轉 SVG 轉換器
+            </h1>
+            <p class="text-lg text-slate-600 max-w-2xl mx-auto">
+                將您的插畫、圖示或標誌從點陣圖轉換為可無限縮放的向量圖格式。
+                <br />
+                <span class="text-sm text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded mt-2 inline-block">
+                    純前端運算，您的圖片不會上傳至伺服器
+                </span>
+            </p>
+        </div>
+
+        <!-- Error Alert -->
+        <div id="error-alert" class="hidden p-4 rounded-lg flex items-start gap-3 bg-red-50 text-red-700 border border-red-200">
+            <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+            <div>
+                <h5 class="font-medium mb-1">錯誤</h5>
+                <div id="error-message" class="text-sm opacity-90"></div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div id="upload-section" class="card border-2 border-dashed border-slate-300 hover:border-indigo-500 transition-colors duration-300">
+            <div id="drop-zone" class="p-16 flex flex-col items-center justify-center text-center cursor-pointer group bg-slate-50/50 hover:bg-slate-50">
+                <div class="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <i data-lucide="upload" class="w-10 h-10"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">
+                    拖放圖片至此處，或點擊上傳
+                </h3>
+                <p class="text-slate-500 mb-6">
+                    支援 PNG, JPG, JPEG 格式
+                </p>
+                <button class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium shadow-md hover:bg-indigo-700 transition-colors pointer-events-none">
+                    選擇檔案
+                </button>
+                <input id="file-input" type="file" class="hidden" accept="image/*" />
+            </div>
+        </div>
+
+        <!-- Workspace Section (Hidden by default) -->
+        <div id="workspace-section" class="hidden space-y-6">
+            
+            <!-- Settings Card -->
+            <div class="card">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-2 text-slate-700 font-bold">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span>轉換設定</span>
+                    </div>
+                    <button id="reset-btn" class="text-sm text-slate-500 hover:text-red-600 flex items-center gap-1 transition-colors">
+                        <i data-lucide="x" class="w-4 h-4"></i> 重新上傳
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        
+                        <!-- Colors Slider -->
+                        <div class="space-y-3">
+                            <label class="flex justify-between text-sm font-medium text-slate-700">
+                                色彩數量 (Colors)
+                                <span id="colors-val" class="text-indigo-600 font-bold">16</span>
+                            </label>
+                            <input id="colors-input" type="range" min="2" max="64" value="16" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                            <p class="text-xs text-slate-500">
+                                數量越低，色塊越單純；數量越高，細節越豐富。
+                            </p>
+                        </div>
+
+                        <!-- Blur Slider -->
+                        <div class="space-y-3">
+                            <label class="flex justify-between text-sm font-medium text-slate-700">
+                                平滑/模糊度 (Blur)
+                                <span id="blur-val" class="text-indigo-600 font-bold">0</span>
+                            </label>
+                            <input id="blur-input" type="range" min="0" max="100" step="1" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                            <p class="text-xs text-slate-500">
+                                增加模糊度可以減少雜訊，使線條更圓滑。
+                            </p>
+                        </div>
+
+                        <!-- Convert Button -->
+                        <div class="flex items-end">
+                            <button id="convert-btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                                <i data-lucide="refresh-cw" class="w-5 h-5" id="convert-icon"></i>
+                                <span id="convert-text">開始轉換</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Original Image -->
+                <div class="card h-full flex flex-col">
+                    <div class="px-6 py-4 border-b border-slate-100">
+                        <h3 class="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                            <i data-lucide="image" class="w-4 h-4"></i> 原始圖片 (PNG/JPG)
+                        </h3>
+                    </div>
+                    <div class="flex-1 p-6 bg-slate-100 flex items-center justify-center min-h-[300px]">
+                        <img id="preview-img" alt="Original" class="max-w-full max-h-[400px] object-contain shadow-sm rounded border border-slate-200 checkerboard hidden" />
+                    </div>
+                </div>
+
+                <!-- Result SVG -->
+                <div class="card h-full flex flex-col border-indigo-200 shadow-indigo-100">
+                    <div class="px-6 py-4 border-b border-slate-100 bg-indigo-50/50 border-indigo-100">
+                        <h3 class="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-indigo-600">
+                            <i data-lucide="file-code" class="w-4 h-4"></i> 轉換結果 (SVG)
+                        </h3>
+                    </div>
+                    <div class="flex-1 p-6 bg-slate-100 flex items-center justify-center min-h-[300px] relative overflow-hidden">
+                        <div id="svg-container" class="w-full h-full flex items-center justify-center">
+                            <div class="text-center text-slate-400" id="empty-state">
+                                <i data-lucide="refresh-cw" class="w-12 h-12 mx-auto mb-2 opacity-20"></i>
+                                <p>點擊「開始轉換」以查看向量結果</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="download-section" class="hidden p-4 border-t border-indigo-100 bg-indigo-50/30">
+                        <button id="download-btn" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5">
+                            <i data-lucide="download" class="w-5 h-5"></i>
+                            下載 SVG 檔案
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="text-center text-slate-400 text-sm mt-12 pb-8">
+            <p>
+                建議使用線條清晰、色塊分明的「插畫」或「Logo」以獲得最佳效果。<br/>
+                照片類型的圖片轉換效果可能較差。
+            </p>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // State
+        let currentFile = null;
+        let previewUrl = null;
+        let svgContent = null;
+        let isProcessing = false;
+
+        // Elements
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadSection = document.getElementById('upload-section');
+        const workspaceSection = document.getElementById('workspace-section');
+        const previewImg = document.getElementById('preview-img');
+        const errorAlert = document.getElementById('error-alert');
+        const errorMessage = document.getElementById('error-message');
+        
+        const colorsInput = document.getElementById('colors-input');
+        const colorsVal = document.getElementById('colors-val');
+        const blurInput = document.getElementById('blur-input');
+        const blurVal = document.getElementById('blur-val');
+        
+        const convertBtn = document.getElementById('convert-btn');
+        const convertIcon = document.getElementById('convert-icon');
+        const convertText = document.getElementById('convert-text');
+        
+        const svgContainer = document.getElementById('svg-container');
+        const emptyState = document.getElementById('empty-state');
+        const downloadSection = document.getElementById('download-section');
+        const downloadBtn = document.getElementById('download-btn');
+        const resetBtn = document.getElementById('reset-btn');
+
+        // Init Icons
+        lucide.createIcons();
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+        dropZone.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        colorsInput.addEventListener('input', (e) => colorsVal.textContent = e.target.value);
+        blurInput.addEventListener('input', (e) => blurVal.textContent = e.target.value);
+        
+        convertBtn.addEventListener('click', convertToSvg);
+        downloadBtn.addEventListener('click', downloadSvg);
+        resetBtn.addEventListener('click', reset);
+
+        function showError(msg) {
+            errorAlert.classList.remove('hidden');
+            errorMessage.textContent = msg;
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                errorAlert.classList.add('hidden');
+            }, 5000);
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            processFile(file);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            processFile(file);
+        }
+
+        function processFile(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                showError('請上傳有效的圖片檔案 (PNG, JPG)。');
+                return;
+            }
+
+            currentFile = file;
+            previewUrl = URL.createObjectURL(file);
+            
+            // UI Update
+            uploadSection.classList.add('hidden');
+            workspaceSection.classList.remove('hidden');
+            previewImg.src = previewUrl;
+            previewImg.classList.remove('hidden');
+            
+            // Reset Result
+            svgContent = null;
+            svgContainer.innerHTML = '';
+            svgContainer.appendChild(emptyState);
+            downloadSection.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+        }
+
+        function setProcessing(processing) {
+            isProcessing = processing;
+            convertBtn.disabled = processing;
+            if (processing) {
+                convertBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                convertIcon.classList.add('animate-spin');
+                convertText.textContent = '處理中...';
+            } else {
+                convertBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                convertIcon.classList.remove('animate-spin');
+                convertText.textContent = svgContent ? '重新轉換' : '開始轉換';
+            }
+        }
+
+        function convertToSvg() {
+            if (!window.libraryLoaded && !window.ImageTracer) {
+                showError('系統核心尚未載入完成，請稍候再試。');
+                return;
+            }
+
+            setProcessing(true);
+            errorAlert.classList.add('hidden');
+
+            setTimeout(() => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = previewUrl;
+
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        
+                        const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                        
+                        const options = {
+                            numberofcolors: parseInt(colorsInput.value),
+                            blurradius: parseInt(blurInput.value),
+                            scale: 1,
+                            ltres: 1, 
+                            qtres: 1, 
+                            pathomit: 8, 
+                            strokewidth: 0, 
+                            viewbox: true,
+                            desc: false,
+                            roundcoords: 1, // Optimization
+                            turdsize: 10,   // Remove noise < 10px
+                        };
+
+                        let svgString = window.ImageTracer.imagedataToSVG(imgData, options);
+                        
+                        // Post-processing: Merge paths
+                        svgString = optimizeSvg(svgString);
+
+                        // Success
+                        svgContent = svgString;
+                        svgContainer.innerHTML = svgContent;
+                        downloadSection.classList.remove('hidden');
+                        
+                        setProcessing(false);
+
+                    } catch (err) {
+                        console.error(err);
+                        showError('轉換失敗: ' + err.message);
+                        setProcessing(false);
+                    }
+                };
+
+                img.onerror = () => {
+                    showError('無法讀取圖片數據。');
+                    setProcessing(false);
+                };
+            }, 100);
+        }
+
+        function optimizeSvg(svgString) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(svgString, "image/svg+xml");
+                const svg = doc.querySelector("svg");
+                
+                if (svg) {
+                    // Set 100% width/height for display inside container
+                    svg.setAttribute('width', '100%');
+                    svg.setAttribute('height', '100%');
+
+                    const paths = Array.from(svg.querySelectorAll("path"));
+                    const newPaths = [];
+                    
+                    if (paths.length > 0) {
+                        let currentPath = paths[0];
+                        let currentFill = currentPath.getAttribute("fill");
+                        let currentD = currentPath.getAttribute("d");
+                        
+                        for (let i = 1; i < paths.length; i++) {
+                            const nextPath = paths[i];
+                            const nextFill = nextPath.getAttribute("fill");
+                            
+                            if (nextFill === currentFill) {
+                                currentD += " " + nextPath.getAttribute("d");
+                            } else {
+                                const mergedPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                                mergedPath.setAttribute("fill", currentFill);
+                                mergedPath.setAttribute("d", currentD);
+                                newPaths.push(mergedPath);
+                                
+                                currentPath = nextPath;
+                                currentFill = nextFill;
+                                currentD = nextPath.getAttribute("d");
+                            }
+                        }
+                        
+                        const mergedPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        mergedPath.setAttribute("fill", currentFill);
+                        mergedPath.setAttribute("d", currentD);
+                        newPaths.push(mergedPath);
+                        
+                        svg.innerHTML = '';
+                        newPaths.forEach(p => svg.appendChild(p));
+                        
+                        const serializer = new XMLSerializer();
+                        return serializer.serializeToString(doc);
+                    }
+                }
+                return svgString;
+            } catch (e) {
+                console.warn('Optimization failed', e);
+                return svgString;
+            }
+        }
+
+        function downloadSvg() {
+            if (!svgContent) return;
+            const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `converted_${currentFile.name.split('.')[0]}.svg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function reset() {
+            currentFile = null;
+            previewUrl = null;
+            svgContent = null;
+            fileInput.value = '';
+            
+            uploadSection.classList.remove('hidden');
+            workspaceSection.classList.add('hidden');
+            errorAlert.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
