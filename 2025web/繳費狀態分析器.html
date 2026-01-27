@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學生報名資料分析工具 - 排序優化版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .unpaid { color: #e53e3e; font-weight: bold; }
+        .paid { color: #38a169; font-weight: bold; }
+        .table-container { overflow-x: auto; position: relative; min-height: 300px; }
+        .highlight-row { background-color: #eff6ff !important; border-left: 4px solid #3b82f6; }
+        .status-badge { padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; white-space: nowrap; }
+        .clickable-card { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .clickable-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        
+        /* 浮動視窗樣式 */
+        #floatingHistory {
+            display: none;
+            position: absolute;
+            z-index: 50;
+            width: 320px;
+            background: white;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+            pointer-events: auto;
+            overflow: hidden;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        tr { cursor: pointer; transition: background-color 0.15s; }
+        tr:hover { background-color: #f9fafb; }
+        
+        /* 讓表格標頭固定 */
+        thead th { position: sticky; top: 0; background-color: #f8fafc; z-index: 10; cursor: pointer; user-select: none; }
+        thead th:hover { background-color: #e2e8f0; }
+        
+        /* 課程列表樣式 */
+        .course-item:not(:last-child) {
+            border-bottom: 1px dashed #e2e8f0;
+            padding-bottom: 4px;
+            margin-bottom: 4px;
+        }
+
+        /* 排序圖示 */
+        .sort-icon::after {
+            content: ' ↕';
+            font-size: 0.8em;
+            color: #94a3b8;
+        }
+        .sort-asc::after { content: ' ↑'; color: #3b82f6; }
+        .sort-desc::after { content: ' ↓'; color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-8" onclick="hideFloating(event)">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800 tracking-tight">報名與繳費對照分析系統 <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2 align-middle">排序優化版</span></h1>
+            <p class="text-slate-500 mt-2 text-sm">點擊表頭可排序 • 班級座號標準化顯示</p>
+        </header>
+
+        <!-- 輸入區域 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-slate-200" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-end mb-2">
+                <label class="block text-sm font-semibold text-slate-700">原始資料輸入：</label>
+                <span class="text-xs text-slate-400">系統將自動過濾換行與多餘空格</span>
+            </div>
+            <textarea id="dataInput" class="w-full h-40 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm leading-relaxed" placeholder="請在此貼上包含班級、姓名、課程與金額的原始文字資料..."></textarea>
+            <div class="mt-4 flex gap-3">
+                <button onclick="analyzeData()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition duration-200 shadow-sm font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    開始分析
+                </button>
+                <button onclick="clearData()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2.5 rounded-lg transition duration-200 font-medium">清空重置</button>
+            </div>
+        </div>
+
+        <!-- 統計卡片 -->
+        <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 hidden" onclick="event.stopPropagation()">
+            <!-- 卡片 1: 總筆數 + 已繳費筆數 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 clickable-card" onclick="renderResults(globalRecords)">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">總解析交易筆數</p>
+                        <h3 id="totalRecords" class="text-3xl font-bold text-slate-800 mt-1">0</h3>
+                        <div class="mt-2 inline-flex items-center px-2 py-1 rounded bg-emerald-50 border border-emerald-100">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>
+                            <span class="text-xs text-emerald-700 font-medium">已繳費：<span id="totalPaid">0</span> 筆</span>
+                        </div>
+                    </div>
+                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-3">點擊顯示全部資料</p>
+            </div>
+
+            <!-- 卡片 2: 待繳費交易筆數 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500 clickable-card" onclick="filterUnpaidWithHistory()">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">待繳費交易筆數</p>
+                        <h3 id="totalUnpaid" class="text-3xl font-bold text-red-600 mt-1">0</h3>
+                    </div>
+                    <div class="p-2 bg-red-50 rounded-lg text-red-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </div>
+                </div>
+                <p class="text-xs text-red-400 mt-4 font-medium">點擊顯示含未繳費紀錄者</p>
+            </div>
+
+            <!-- 卡片 3: 完全未繳費學生 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500 clickable-card" onclick="filterCompletelyUnpaid()">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">完全未繳費學生</p>
+                        <h3 id="totalCompletelyUnpaid" class="text-3xl font-bold text-purple-600 mt-1">0</h3>
+                        <p class="text-[10px] text-slate-400 mt-1">(名下所有課程皆未繳)</p>
+                    </div>
+                    <div class="p-2 bg-purple-50 rounded-lg text-purple-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line></svg>
+                    </div>
+                </div>
+                <p class="text-xs text-purple-400 mt-3 font-medium">點擊僅顯示此類學生</p>
+            </div>
+        </div>
+
+        <!-- 分析結果表格 -->
+        <div id="resultSection" class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col hidden" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-xl sticky top-0 z-20">
+                <div class="flex items-center gap-3">
+                    <h2 id="tableTitle" class="text-lg font-bold text-slate-800">詳細解析清單</h2>
+                    <span id="currentCountBadge" class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full font-mono">0 筆</span>
+                </div>
+                <button id="resetFilterBtn" onclick="renderResults(globalRecords)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded transition hidden flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    清除篩選
+                </button>
+            </div>
+            
+            <div class="table-container flex-1" id="tableWrapper">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th onclick="handleSort('classSeat')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-classSeat">班級座號</th>
+                            <th onclick="handleSort('name')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-name">學生姓名</th>
+                            <th onclick="handleSort('course')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-course">課程名稱</th>
+                            <th onclick="handleSort('amount')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-amount">總金額</th>
+                            <th onclick="handleSort('status')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-status">目前狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultBody" class="bg-white divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+
+                <!-- 浮動顯示個人歷史紀錄 DIV -->
+                <div id="floatingHistory">
+                    <div class="px-4 py-3 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <h3 id="historyName" class="font-bold text-slate-800 text-sm"></h3>
+                        </div>
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">繳費紀錄</span>
+                    </div>
+                    <div id="historyList" class="p-3 space-y-2 max-h-64 overflow-y-auto bg-white"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let globalRecords = [];
+        let displayedRecords = []; // 為了排序功能，儲存當前顯示的資料集
+        let currentSort = { key: null, direction: 'asc' };
+
+        // 中文數字轉阿拉伯數字對照表
+        const cnNums = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+
+        function normalizeClassInfo(rawClass, rawSeat) {
+            // 1. 處理班級：一年一班 -> 101, 1年2班 -> 102
+            let grade = '', cls = '';
+            
+            // 將中文數字轉為阿拉伯數字
+            let normalizedStr = rawClass.replace(/[一二三四五六七八九]/g, m => cnNums[m]);
+            
+            const match = normalizedStr.match(/(\d+)年(\d+)班/);
+            if (match) {
+                grade = match[1];
+                cls = match[2].padStart(2, '0'); // 補零至兩位
+            } else {
+                return rawClass; // 無法解析則回傳原字串
+            }
+
+            // 2. 處理座號：01號 -> 01
+            let seat = '00';
+            if (rawSeat) {
+                const seatMatch = rawSeat.match(/(\d+)/);
+                if (seatMatch) {
+                    seat = seatMatch[1].padStart(2, '0');
+                }
+            }
+
+            return {
+                display: `${grade}${cls} ${seat}`, // 顯示用：101 01
+                sortValue: parseInt(`${grade}${cls}${seat}`) // 排序用數值：10101
+            };
+        }
+
+        function analyzeData() {
+            const rawData = document.getElementById('dataInput').value;
+            if (!rawData.trim()) {
+                alert('請先輸入資料！');
+                return;
+            }
+
+            const cleanData = rawData.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+            const classPart = String.raw`(?:\d+|[一二三四五六])年(?:\d+|[一二三四五六七])班`;
+            const seatPart = String.raw`(?:\d+號)?`;
+            const nameAndContentPart = String.raw`(.+?)`;
+            const amountStatusPart = String.raw`(\d+)\s*(已繳費|未繳費)`;
+            const recordPattern = new RegExp(`(${classPart})\\s*(${seatPart})\\s*${nameAndContentPart}\\s+${amountStatusPart}`, 'g');
+
+            globalRecords = [];
+            let match;
+
+            while ((match = recordPattern.exec(cleanData)) !== null) {
+                const rawClass = match[1];
+                const rawSeat = match[2] || '';
+                const rawContent = match[3].trim();
+                const amount = match[4];
+                const status = match[5];
+                const groupId = Math.random().toString(36).substr(2, 9);
+
+                // 處理班級座號
+                const normalizedObj = normalizeClassInfo(rawClass, rawSeat);
+
+                // 姓名分離
+                let name = "";
+                let middleContent = "";
+                const firstSpaceIndex = rawContent.indexOf(' ');
+                
+                if (firstSpaceIndex > 0 && firstSpaceIndex <= 4) {
+                    name = rawContent.substring(0, firstSpaceIndex);
+                    middleContent = rawContent.substring(firstSpaceIndex).trim();
+                } else {
+                    const cutLength = rawContent.length >= 3 ? 3 : 2;
+                    name = rawContent.substring(0, cutLength);
+                    middleContent = rawContent.substring(cutLength).trim();
+                }
+
+                // 解析課程
+                const coursePattern = /([^\s]+(?:[\s][^\s]+)*?)\s*(正取|錄取退出|備取)/g;
+                let cMatch;
+                const validCourses = [];
+
+                while ((cMatch = coursePattern.exec(middleContent)) !== null) {
+                    if (cMatch[2] === '正取') {
+                        validCourses.push(cMatch[1].trim());
+                    }
+                }
+
+                if (validCourses.length > 0) {
+                    globalRecords.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        groupId: groupId,
+                        classSeatDisplay: normalizedObj.display,
+                        classSeatSort: normalizedObj.sortValue,
+                        name,
+                        courses: validCourses,
+                        amount: parseInt(amount),
+                        status,
+                        totalCourses: validCourses.length
+                    });
+                }
+            }
+
+            updateStats();
+            renderResults(globalRecords);
+        }
+
+        function updateStats() {
+            const totalRecords = globalRecords.length;
+            const paidRecords = globalRecords.filter(r => r.status === '已繳費').length;
+            const unpaidRecords = totalRecords - paidRecords;
+            
+            const uniqueNames = [...new Set(globalRecords.map(r => r.name))];
+            let completelyUnpaidCount = 0;
+
+            uniqueNames.forEach(name => {
+                const studentRecords = globalRecords.filter(r => r.name === name);
+                const hasPaid = studentRecords.some(r => r.status === '已繳費');
+                if (!hasPaid) completelyUnpaidCount++;
+            });
+
+            document.getElementById('totalRecords').innerText = totalRecords;
+            document.getElementById('totalPaid').innerText = paidRecords;
+            document.getElementById('totalUnpaid').innerText = unpaidRecords;
+            document.getElementById('totalCompletelyUnpaid').innerText = completelyUnpaidCount;
+        }
+
+        function filterUnpaidWithHistory() {
+            const unpaidStudentNames = new Set(globalRecords.filter(r => r.status === '未繳費').map(r => r.name));
+            if (unpaidStudentNames.size === 0) { alert("太棒了！目前沒有未繳費項目。"); return; }
+            const recordsToShow = globalRecords.filter(r => unpaidStudentNames.has(r.name));
+            updateFilterUI("未繳費學生清單 (顯示該生所有紀錄)", recordsToShow);
+        }
+
+        function filterCompletelyUnpaid() {
+            const uniqueNames = [...new Set(globalRecords.map(r => r.name))];
+            const completelyUnpaidNames = new Set();
+            uniqueNames.forEach(name => {
+                const studentRecords = globalRecords.filter(r => r.name === name);
+                if (!studentRecords.some(r => r.status === '已繳費')) completelyUnpaidNames.add(name);
+            });
+
+            if (completelyUnpaidNames.size === 0) { alert("沒有完全未繳費的學生！"); return; }
+            const recordsToShow = globalRecords.filter(r => completelyUnpaidNames.has(r.name));
+            updateFilterUI("完全未繳費學生清單", recordsToShow);
+        }
+
+        function updateFilterUI(title, records) {
+            document.getElementById('tableTitle').innerText = title;
+            document.getElementById('resetFilterBtn').classList.remove('hidden');
+            renderResults(records, true);
+        }
+
+        // 排序處理函數
+        function handleSort(key) {
+            if (currentSort.key === key) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.key = key;
+                currentSort.direction = 'asc';
+            }
+            
+            // 更新 UI 圖示
+            document.querySelectorAll('th.sort-icon').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.id === `header-${key}`) {
+                    th.classList.add(currentSort.direction === 'sort-asc' ? 'sort-asc' : `sort-${currentSort.direction}`);
+                }
+            });
+
+            // 執行排序
+            const sortedRecords = [...displayedRecords].sort((a, b) => {
+                let valA, valB;
+
+                switch(key) {
+                    case 'classSeat':
+                        valA = a.classSeatSort;
+                        valB = b.classSeatSort;
+                        break;
+                    case 'name':
+                        valA = a.name;
+                        valB = b.name;
+                        break;
+                    case 'course':
+                        valA = a.courses[0]; // 使用第一個課程名稱排序
+                        valB = b.courses[0];
+                        break;
+                    case 'amount':
+                        valA = a.amount;
+                        valB = b.amount;
+                        break;
+                    case 'status':
+                        valA = a.status;
+                        valB = b.status;
+                        break;
+                }
+
+                if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderResults(sortedRecords, document.getElementById('resetFilterBtn').classList.contains('hidden') ? false : true);
+        }
+
+        function renderResults(records, isFiltered = false) {
+            displayedRecords = records; // 更新當前顯示資料集以供排序使用
+            const body = document.getElementById('resultBody');
+            body.innerHTML = '';
+            hideFloating();
+            
+            if (!isFiltered) {
+                document.getElementById('tableTitle').innerText = "詳細解析清單";
+                document.getElementById('resetFilterBtn').classList.add('hidden');
+            }
+            
+            document.getElementById('currentCountBadge').innerText = `${records.length} 筆交易`;
+
+            if (records.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400">沒有符合的資料</td></tr>`;
+                return;
+            }
+
+            records.forEach(r => {
+                const row = document.createElement('tr');
+                const isPaid = r.status === '已繳費';
+                const statusColor = isPaid ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-700 border border-red-200';
+
+                row.setAttribute('data-id', r.id);
+                row.onclick = (e) => { e.stopPropagation(); toggleHistory(row, r.name, r.id); };
+
+                const courseListHtml = r.courses.map(c => `<div class="course-item text-slate-700 font-medium">${c}</div>`).join('');
+                const countBadge = r.totalCourses > 1 ? `<span class="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full inline-flex items-center">共${r.totalCourses}科</span>` : '';
+
+                // 修改：增加 style="line-height: 0.5rem;" 和縮減 py 為 py-2
+                row.innerHTML = `
+                    <td class="px-6 py-2 whitespace-nowrap align-top text-sm font-mono text-slate-600 font-bold" style="line-height: 0.5rem;">
+                        ${r.classSeatDisplay}
+                    </td>
+                    <td class="px-6 py-2 whitespace-nowrap align-top" style="line-height: 0.5rem;">
+                        <div class="text-sm font-medium text-slate-900 flex items-center">
+                            ${r.name}
+                            ${countBadge}
+                        </div>
+                    </td>
+                    <td class="px-6 py-2 align-top" style="line-height: 0.5rem;">
+                        <div class="flex flex-col text-sm">
+                            ${courseListHtml}
+                        </div>
+                    </td>
+                    <td class="px-6 py-2 whitespace-nowrap text-sm text-slate-600 font-mono align-top" style="line-height: 0.5rem;">
+                        $${r.amount}
+                    </td>
+                    <td class="px-6 py-2 whitespace-nowrap align-top" style="line-height: 0.5rem;">
+                        <span class="status-badge ${statusColor} px-3 py-1 rounded-full text-xs font-semibold">
+                            ${r.status}
+                        </span>
+                    </td>
+                `;
+                body.appendChild(row);
+            });
+
+            document.getElementById('statsGrid').classList.remove('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+
+        function toggleHistory(rowElement, name, rowId) {
+            const floatingDiv = document.getElementById('floatingHistory');
+            
+            if (rowElement.classList.contains('highlight-row')) { hideFloating(); return; }
+
+            document.querySelectorAll('tr').forEach(tr => tr.classList.remove('highlight-row'));
+            rowElement.classList.add('highlight-row');
+
+            const rect = rowElement.getBoundingClientRect();
+            const wrapperRect = document.getElementById('tableWrapper').getBoundingClientRect();
+            const top = rect.bottom - wrapperRect.top;
+            
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                 floatingDiv.style.left = '10px';
+                 floatingDiv.style.right = 'auto';
+            } else {
+                 const left = Math.min(rect.right - wrapperRect.left - 300, wrapperRect.width - 340);
+                 floatingDiv.style.left = `${left > 0 ? left : 20}px`;
+            }
+
+            floatingDiv.style.top = `${top}px`;
+            floatingDiv.style.display = 'block';
+
+            document.getElementById('historyName').innerText = `${name} 的所有紀錄`;
+            const studentRecords = globalRecords.filter(r => r.name === name);
+            const listContainer = document.getElementById('historyList');
+            
+            let html = '';
+            studentRecords.forEach(r => {
+                const isPaid = r.status === '已繳費';
+                const isCurrent = r.id === rowId;
+                const coursesHtml = r.courses.map(c => `<div class="font-bold text-slate-700 leading-tight mb-1">• ${c}</div>`).join('');
+
+                html += `
+                    <div class="p-3 border rounded-lg text-sm transition-colors ${isPaid ? 'bg-emerald-50/50 border-emerald-100 hover:bg-emerald-50' : 'bg-red-50/50 border-red-100 hover:bg-red-50'} ${isCurrent ? 'ring-2 ring-blue-400 ring-offset-1' : ''}">
+                        <div class="mb-2">${coursesHtml}</div>
+                        <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200/50">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500 font-mono">總額: $${r.amount}</span>
+                                ${isCurrent ? '<span class="text-[10px] bg-blue-100 text-blue-600 px-1 rounded">當前</span>' : ''}
+                            </div>
+                            <span class="status-badge ${isPaid ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}">${r.status}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        function hideFloating(e) {
+            const floatingDiv = document.getElementById('floatingHistory');
+            if (floatingDiv && floatingDiv.style.display !== 'none') {
+                if (e && (floatingDiv.contains(e.target) || e.target.closest('tr'))) return;
+                floatingDiv.style.display = 'none';
+                document.querySelectorAll('tr').forEach(tr => tr.classList.remove('highlight-row'));
+            }
+        }
+
+        function clearData() {
+            document.getElementById('dataInput').value = '';
+            document.getElementById('statsGrid').classList.add('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('floatingHistory').style.display = 'none';
+            globalRecords = [];
+        }
+
+
+    </script>
+</body>
+</html>

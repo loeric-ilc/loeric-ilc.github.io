@@ -42,6 +42,7 @@
         .dropdown {
             position: relative;
             display: inline-block;
+            padding-bottom: 5px; 
         }
 
         .dropbtn {
@@ -69,13 +70,28 @@
             display: none;
             position: absolute;
             right: 0;
-            top: 110%; /* Slight gap */
+            /* 修改 1: 讓選單貼近按鈕底部，改用 margin 製造視覺距離 */
+            top: 100%; 
+            margin-top: 10px; /* 視覺上的間距 */
+            
             background-color: #ffffff;
             min-width: 180px;
             box-shadow: 0px 8px 20px rgba(0,0,0,0.15);
             border-radius: 12px;
-            overflow: hidden;
+            overflow: visible; /* 修改 2: 允許偽元素超出邊界 */
             animation: fadeIn 0.2s ease-in-out;
+        }
+
+        /* 修改 3: 新增「隱形橋樑」填補縫隙 */
+        .dropdown-content::before {
+            content: "";
+            position: absolute;
+            top: -20px; /* 向上延伸覆蓋縫隙 */
+            left: 0;
+            width: 100%;
+            height: 20px; /* 高度足夠覆蓋 margin-top 的距離 */
+            background: transparent; /* 透明 */
+            display: block;
         }
 
         .dropdown-content a {
@@ -86,6 +102,8 @@
             font-size: 0.9rem;
             transition: background 0.2s;
             border-bottom: 1px solid #f0f0f0;
+            position: relative; /* 確保連結在偽元素之上 */
+            z-index: 1;
         }
 
         .dropdown-content a:last-child {
@@ -99,7 +117,7 @@
 
         /* Show dropdown on hover */
         .dropdown:hover .dropdown-content {
-            display: block;
+            display: block;border-radius: 12px;
         }
 
         @keyframes fadeIn {
@@ -108,10 +126,9 @@
         }
         /* -------------------------------- */
 
-        /* Header Section */
         header {
             text-align: center;
-            padding: 70px 20px 40px; /* Increased top padding slightly */
+            padding: 70px 20px 40px;
             width: 100%;
             background: linear-gradient(120deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
@@ -133,7 +150,6 @@
             opacity: 0.9;
         }
 
-        /* Container */
         .container {
             width: 90%;
             max-width: 1000px;
@@ -143,7 +159,6 @@
             padding-bottom: 60px;
         }
 
-        /* Card Design */
         .card {
             background: var(--card-bg);
             border-radius: 20px;
@@ -210,13 +225,11 @@
             background: var(--primary-color);
         }
 
-        /* Specific Colors based on context */
         .card:nth-child(1) .card-icon { background: #e3f2fd; color: #2196f3; }
         .card:nth-child(2) .card-icon { background: #fff3e0; color: #ff9800; }
         .card:nth-child(3) .card-icon { background: #fce4ec; color: #e91e63; }
         .card:nth-child(4) .card-icon { background: #e8f5e9; color: #4caf50; }
 
-        /* Footer */
         footer {
             margin-top: auto;
             padding: 20px;
@@ -227,7 +240,7 @@
         @media (max-width: 600px) {
             header h1 { font-size: 1.8rem; }
             .container { width: 95%; }
-            .top-tools { top: 15px; right: 15px; } /* Adjust for mobile */
+            .top-tools { top: 15px; right: 15px; }
         }
     </style>
 </head>
@@ -237,8 +250,11 @@
         <div class="dropdown">
             <button class="dropbtn">工具箱 🛠️</button>
             <div class="dropdown-content">
-                <a href="2025web/PNG轉SVG.html">PNG/PNG轉SVG</a>
-                </div>
+                <a href="2025web/PNG轉SVG.html">PNG/PNG轉SVG</a>                
+                <a href="2025web/其他工具.html">PNG去背工具</a>
+                <a href="2025web/繳費狀態分析器.html">繳費狀態分析器</a>
+            </div>           
+
         </div>
     </div>
 
