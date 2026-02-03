@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>學生報名資料分析工具 - 繳費單生成版</title>
+    <title>學生報名資料分析工具</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .unpaid { color: #e53e3e; font-weight: bold; }
@@ -19,7 +19,7 @@
             display: none;
             position: absolute;
             z-index: 50;
-            width: 320px;
+            width: 350px; /* 稍微加寬以容納聯絡資訊 */
             background: white;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             border-radius: 0.75rem;
@@ -58,24 +58,70 @@
         .sort-desc::after { content: ' ↓'; color: #3b82f6; }
 
         /* Modal 樣式 */
-        #pdfModal {
+        .modal-overlay {
             display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 100;
             background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 列印專用樣式 */
+        #printArea { display: none; }
+        
+        @media print {
+            @page { size: A4; margin: 5mm 10mm; }
+            body > * { display: none !important; }
+            #printArea, #printArea * { display: block !important; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+            
+            .print-a4-page {
+                width: 100%; height: 280mm; page-break-after: always;
+                display: table; border-collapse: collapse; table-layout: fixed;
+            }
+            .print-a4-page:last-child { page-break-after: auto; }
+            .print-slip-row { height: 20%; }
+            .print-slip-cell { width: 50%; padding: 0; vertical-align: middle; border-bottom: 1px dashed #999; }
+            .print-slip-row:last-child .print-slip-cell { border-bottom: none; }
+            .slip-left-cell { border-right: 1px dashed #000; }
+            .slip-inner { padding: 5px 15px; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+            .slip-title { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; text-decoration: underline; letter-spacing: 2px; }
+            .slip-subtitle { text-align: right; font-size: 10px; font-weight: normal; margin-bottom: 2px; }
+            .slip-content p { font-size: 14px; margin: 4px 0; line-height: 1.4; font-family: "KaiTi", "BiauKai", "DFKai-SB", serif; }
+            .slip-amount { margin-top: 8px; font-weight: bold; font-size: 15px; }
+            .slip-date { text-align: center; margin-top: 8px; font-size: 12px; }
         }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen p-4 md:p-8" onclick="hideFloating(event)">
     <div class="max-w-7xl mx-auto">
         <header class="mb-8 text-center">
-            <h1 class="text-3xl font-bold text-slate-800 tracking-tight">報名與繳費對照分析系統 <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2 align-middle">繳費單生成版</span></h1>
-            <p class="text-slate-500 mt-2 text-sm">點擊表頭可排序 • 支援批次產生繳費通知單 (Blob PDF模式)</p>
+            <h1 class="text-3xl font-bold text-slate-800 tracking-tight">報名與繳費對照分析系統 <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2 align-middle">聯絡簿整合版</span></h1>
+            <p class="text-slate-500 mt-2 text-sm">點擊表頭可排序 • 點擊學生可查看家長聯絡資訊</p>
         </header>
 
         <!-- 輸入區域 -->
         <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-slate-200" onclick="event.stopPropagation()">
             <div class="flex justify-between items-end mb-2">
-                <label class="block text-sm font-semibold text-slate-700">原始資料輸入：</label>
-                <span class="text-xs text-slate-400">系統將自動過濾換行與多餘空格</span>
+                <label class="block text-sm font-semibold text-slate-700">原始資料輸入 (報名繳費資料)：</label>
+                <!-- 管理按鈕 -->
+                <button onclick="openContactModal()" class="text-xs bg-pink-100 text-pink-700 hover:bg-pink-200 px-3 py-1 rounded border border-pink-200 transition font-bold flex items-center gap-1">
+                    <span>📂</span> 管理學生聯絡資料庫
+                </button>
             </div>
             <textarea id="dataInput" class="w-full h-40 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm leading-relaxed" placeholder="請在此貼上包含班級、姓名、課程與金額的原始文字資料..."></textarea>
             <div class="mt-4 flex gap-3">
@@ -89,11 +135,11 @@
 
         <!-- 統計卡片 -->
         <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 hidden" onclick="event.stopPropagation()">
-            <!-- 卡片 1: 總筆數 + 已繳費筆數 -->
+            <!-- 卡片 1 -->
             <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 clickable-card" onclick="renderResults(globalRecords)">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">總解析交易筆數</p>
+                        <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">總解析筆數(略過退出)</p>
                         <h3 id="totalRecords" class="text-3xl font-bold text-slate-800 mt-1">0</h3>
                         <div class="mt-2 inline-flex items-center px-2 py-1 rounded bg-emerald-50 border border-emerald-100">
                             <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>
@@ -107,7 +153,7 @@
                 <p class="text-xs text-slate-400 mt-3">點擊顯示全部資料</p>
             </div>
 
-            <!-- 卡片 2: 待繳費交易筆數 -->
+            <!-- 卡片 2 -->
             <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500 clickable-card" onclick="filterUnpaidWithHistory()">
                 <div class="flex justify-between items-start">
                     <div>
@@ -121,7 +167,7 @@
                 <p class="text-xs text-red-400 mt-4 font-medium">點擊顯示含未繳費紀錄者</p>
             </div>
 
-            <!-- 卡片 3: 完全未繳費學生 -->
+            <!-- 卡片 3 -->
             <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500 clickable-card" onclick="filterCompletelyUnpaid()">
                 <div class="flex justify-between items-start">
                     <div>
@@ -133,7 +179,6 @@
                         <div class="p-2 bg-purple-50 rounded-lg text-purple-600">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line></svg>
                         </div>
-                        <!-- 新增產生通知單按鈕 -->
                         <button onclick="openPDFModal(event)" class="bg-purple-600 hover:bg-purple-700 text-white text-xs px-2 py-1 rounded shadow transition flex items-center gap-1">
                             <span>🖨️</span> 產生催繳單
                         </button>
@@ -159,6 +204,7 @@
                 <table class="min-w-full divide-y divide-slate-200">
                     <thead class="bg-slate-50">
                         <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">No.</th>
                             <th onclick="handleSort('classSeat')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-classSeat">班級座號</th>
                             <th onclick="handleSort('name')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-name">學生姓名</th>
                             <th onclick="handleSort('course')" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider sort-icon" id="header-course">課程名稱</th>
@@ -171,6 +217,12 @@
 
                 <!-- 浮動顯示個人歷史紀錄 DIV -->
                 <div id="floatingHistory">
+                    <!-- 家長聯絡資料區塊 -->
+                    <div id="contactInfoSection" class="bg-pink-50 border-b border-pink-100 p-4 hidden">
+                        <h4 class="text-xs font-bold text-pink-700 mb-2 uppercase tracking-wider">聯絡資訊</h4>
+                        <div id="contactInfoContent" class="text-sm text-slate-700 space-y-1"></div>
+                    </div>
+                    <!-- 繳費紀錄區塊 -->
                     <div class="px-4 py-3 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
                         <div class="flex items-center gap-2">
                             <div class="w-2 h-2 rounded-full bg-blue-500"></div>
@@ -185,13 +237,12 @@
     </div>
 
     <!-- 選擇學生列印 Modal -->
-    <div id="pdfModal" class="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm">
+    <div id="pdfModal" class="modal-overlay">
         <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="p-4 bg-slate-800 text-white flex justify-between items-center">
                 <h3 class="font-bold text-lg">選擇要產生繳費單的交易</h3>
                 <button onclick="closePDFModal()" class="text-slate-400 hover:text-white">&times;</button>
             </div>
-            
             <div class="p-2 border-b bg-slate-50 flex items-center justify-between">
                 <label class="flex items-center gap-2 cursor-pointer select-none text-sm font-semibold text-slate-700 p-2 rounded hover:bg-slate-200 transition">
                     <input type="checkbox" id="selectAllPdf" onchange="toggleSelectAllPdf(this)" checked class="w-4 h-4 text-blue-600 rounded">
@@ -199,57 +250,163 @@
                 </label>
                 <span class="text-xs text-slate-500" id="selectedCount">已選 0 筆</span>
             </div>
-
-            <div class="overflow-y-auto p-4 space-y-2 flex-1" id="pdfStudentList">
-                <!-- 列表將由 JS 插入 -->
-            </div>
-
+            <div class="overflow-y-auto p-4 space-y-2 flex-1" id="pdfStudentList"></div>
             <div class="p-4 border-t bg-slate-50 flex justify-end gap-3">
                 <button onclick="closePDFModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium">取消</button>
-                <button onclick="generatePrint()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow font-medium flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                    執行列印 / 存為PDF
-                </button>
+                <button onclick="generatePrint()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow font-medium flex items-center gap-2">執行列印 / 存為PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理學生聯絡資料 Modal -->
+    <div id="contactDbModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="p-4 bg-pink-600 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg">管理學生聯絡資料庫</h3>
+                <button onclick="closeContactModal()" class="text-pink-100 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="p-6 flex-1 overflow-y-auto">
+                <p class="text-sm text-slate-600 mb-2">請貼上學生資料 (包含學號、姓名、監護人電話等，支援 Tab 或空格分隔)：</p>
+                <textarea id="contactRawInput" class="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 font-mono text-sm" placeholder="學號 姓名 年級 班級 座號 ..."></textarea>
+                <div class="mt-2 text-xs text-slate-500" id="contactStatus">尚未載入資料</div>
+            </div>
+            <div class="p-4 border-t bg-slate-50 flex justify-end gap-3">
+                <button onclick="closeContactModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">關閉</button>
+                <button onclick="parseAndSaveContact()" class="px-6 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 shadow font-medium">解析並儲存</button>
             </div>
         </div>
     </div>
 
     <script>
         let globalRecords = [];
-        let displayedRecords = []; // 為了排序功能，儲存當前顯示的資料集
+        let globalContactData = []; // 儲存聯絡資料
+        let displayedRecords = [];
         let currentSort = { key: null, direction: 'asc' };
 
-        // 中文數字轉阿拉伯數字對照表
+        const STORAGE_KEY = 'studentContactDatabase';
+        const CONTACT_HEADERS = ['學號', '姓名', '年級', '班級', '座號', '監護人行動電話', '家長1姓名', '家長1行動電話', '家長2姓名', '家長2行動電話'];
+        const DEFAULT_CONTACT_DATA = `
+學號  姓名  年級  班級  座號  監護人行動電話 家長1姓名   家長1行動電話 家長2姓名   家長2行動電話
+1140000 方OO 1   01  01  091000088  方OO 090000073  宋OO 0910000008
+1140005 林OO 1   01  02  090000116  林OO 000000116  吳OO 0900000006
+1140004 林OO 1   01  13  090000295  李OO 000000295  林OO 0900000003
+`;
+
         const cnNums = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
 
-        // 數字轉大寫金額函式
+        // === 初始化 ===
+        document.addEventListener('DOMContentLoaded', () => {
+            loadContactDb();
+        });
+
+        // === 聯絡資料庫邏輯 ===
+        function openContactModal() {
+            document.getElementById('contactDbModal').style.display = 'flex';
+            const stored = localStorage.getItem(STORAGE_KEY);
+            document.getElementById('contactRawInput').value = stored ? localStorage.getItem(STORAGE_KEY + '_raw') || DEFAULT_CONTACT_DATA.trim() : DEFAULT_CONTACT_DATA.trim();
+        }
+
+        function closeContactModal() {
+            document.getElementById('contactDbModal').style.display = 'none';
+        }
+
+        function loadContactDb() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                globalContactData = JSON.parse(stored);
+                document.getElementById('contactStatus').innerText = `已載入 ${globalContactData.length} 筆聯絡資料`;
+            } else {
+                // 初次使用，解析預設資料
+                document.getElementById('contactRawInput').value = DEFAULT_CONTACT_DATA.trim();
+                parseAndSaveContact(true);
+            }
+        }
+
+        function parseAndSaveContact(silent = false) {
+            try {
+                const rawText = document.getElementById('contactRawInput').value;
+                const tokens = rawText.split(/\s+/).filter(t => t.trim() !== '');
+                const students = [];
+                let currentStudentTokens = [];
+                const idRegex = /^\d{6,7}$/;
+
+                for (let i = 0; i < tokens.length; i++) {
+                    const token = tokens[i];
+                    if (idRegex.test(token)) {
+                        if (currentStudentTokens.length > 0) {
+                            students.push(mapTokensToStudent(currentStudentTokens));
+                        }
+                        currentStudentTokens = [token];
+                    } else {
+                        if (currentStudentTokens.length > 0) {
+                            currentStudentTokens.push(token);
+                        }
+                    }
+                }
+                if (currentStudentTokens.length > 0) {
+                    students.push(mapTokensToStudent(currentStudentTokens));
+                }
+
+                if (students.length === 0 && !silent) {
+                    alert('未偵測到符合格式的資料 (需包含 6或7 碼學號)');
+                    return;
+                }
+
+                globalContactData = students;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+                localStorage.setItem(STORAGE_KEY + '_raw', rawText); // 保存原始文字以便編輯
+                document.getElementById('contactStatus').innerText = `已儲存 ${students.length} 筆資料`;
+                
+                if (!silent) {
+                    alert(`解析成功！已儲存 ${students.length} 筆學生聯絡資料。`);
+                    closeContactModal();
+                }
+            } catch (e) {
+                console.error(e);
+                alert('解析聯絡資料時發生錯誤');
+            }
+        }
+
+        function mapTokensToStudent(tokens) {
+            const isText = (str) => /[\u4e00-\u9fa5a-zA-Z]/.test(str);
+            // 檢查電話欄位索引 (5, 7, 9)，若為文字則插入 "-"
+            const checkIndices = [5, 7, 9];
+            checkIndices.forEach(index => {
+                if (tokens.length > index) {
+                    if (isText(tokens[index])) {
+                        tokens.splice(index, 0, "-");
+                    }
+                }
+            });
+
+            const studentObj = {};
+            CONTACT_HEADERS.forEach((header, index) => {
+                studentObj[header] = tokens[index] || '';
+            });
+            return studentObj;
+        }
+
+        function getStudentContact(name) {
+            // 簡單以姓名搜尋，回傳第一個符合的
+            return globalContactData.find(s => s['姓名'] === name);
+        }
+
+        // === 原有分析邏輯 ===
         function toChineseNum(num) {
             const digits = ['零', '壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖'];
             const units = ['', '拾', '佰', '仟', '萬', '拾', '佰', '仟', '億'];
             const nStr = Math.floor(num).toString();
             let result = '';
-            
             if (num === 0) return '零';
-
             let zero = false;
             for (let i = 0; i < nStr.length; i++) {
                 const digit = parseInt(nStr[i]);
                 const unit = units[nStr.length - 1 - i];
-                
                 if (digit !== 0) {
-                    if (zero) {
-                        result += digits[0];
-                        zero = false;
-                    }
+                    if (zero) { result += digits[0]; zero = false; }
                     result += digits[digit] + unit;
                 } else {
-                    // 如果單位是萬或億，必須保留
-                    if (unit === '萬' || unit === '億') {
-                         result += unit;
-                         zero = false;
-                    } else {
-                         zero = true;
-                    }
+                    if (unit === '萬' || unit === '億') { result += unit; zero = false; } else { zero = true; }
                 }
             }
             return result;
@@ -262,9 +419,7 @@
             if (match) {
                 grade = match[1];
                 cls = match[2].padStart(2, '0');
-            } else {
-                return rawClass;
-            }
+            } else { return rawClass; }
             let seat = '00';
             if (rawSeat) {
                 const seatMatch = rawSeat.match(/(\d+)/);
@@ -279,17 +434,14 @@
         function analyzeData() {
             const rawData = document.getElementById('dataInput').value;
             if (!rawData.trim()) { alert('請先輸入資料！'); return; }
-
             const cleanData = rawData.replace(/\n/g, ' ').replace(/\s+/g, ' ');
             const classPart = String.raw`(?:\d+|[一二三四五六])年(?:\d+|[一二三四五六七])班`;
             const seatPart = String.raw`(?:\d+號)?`;
             const nameAndContentPart = String.raw`(.+?)`;
             const amountStatusPart = String.raw`(\d+)\s*(已繳費|未繳費)`;
             const recordPattern = new RegExp(`(${classPart})\\s*(${seatPart})\\s*${nameAndContentPart}\\s+${amountStatusPart}`, 'g');
-
             globalRecords = [];
             let match;
-
             while ((match = recordPattern.exec(cleanData)) !== null) {
                 const rawClass = match[1];
                 const rawSeat = match[2] || '';
@@ -298,10 +450,8 @@
                 const status = match[5];
                 const groupId = Math.random().toString(36).substr(2, 9);
                 const normalizedObj = normalizeClassInfo(rawClass, rawSeat);
-
                 let name = "", middleContent = "";
                 const firstSpaceIndex = rawContent.indexOf(' ');
-                
                 if (firstSpaceIndex > 0 && firstSpaceIndex <= 4) {
                     name = rawContent.substring(0, firstSpaceIndex);
                     middleContent = rawContent.substring(firstSpaceIndex).trim();
@@ -310,15 +460,12 @@
                     name = rawContent.substring(0, cutLength);
                     middleContent = rawContent.substring(cutLength).trim();
                 }
-
                 const coursePattern = /([^\s]+(?:[\s][^\s]+)*?)\s*(正取|錄取退出|備取)/g;
                 let cMatch;
                 const validCourses = [];
-
                 while ((cMatch = coursePattern.exec(middleContent)) !== null) {
                     if (cMatch[2] === '正取') validCourses.push(cMatch[1].trim());
                 }
-
                 if (validCourses.length > 0) {
                     globalRecords.push({
                         id: Math.random().toString(36).substr(2, 9),
@@ -341,14 +488,12 @@
             const totalRecords = globalRecords.length;
             const paidRecords = globalRecords.filter(r => r.status === '已繳費').length;
             const unpaidRecords = totalRecords - paidRecords;
-            
             const uniqueNames = [...new Set(globalRecords.map(r => r.name))];
             let completelyUnpaidCount = 0;
             uniqueNames.forEach(name => {
                 const studentRecords = globalRecords.filter(r => r.name === name);
                 if (!studentRecords.some(r => r.status === '已繳費')) completelyUnpaidCount++;
             });
-
             document.getElementById('totalRecords').innerText = totalRecords;
             document.getElementById('totalPaid').innerText = paidRecords;
             document.getElementById('totalUnpaid').innerText = unpaidRecords;
@@ -423,10 +568,10 @@
             }
             document.getElementById('currentCountBadge').innerText = `${records.length} 筆交易`;
             if (records.length === 0) {
-                body.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400">沒有符合的資料</td></tr>`;
+                body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400">沒有符合的資料</td></tr>`;
                 return;
             }
-            records.forEach(r => {
+            records.forEach((r, index) => {
                 const row = document.createElement('tr');
                 const isPaid = r.status === '已繳費';
                 const statusColor = isPaid ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-700 border border-red-200';
@@ -435,6 +580,7 @@
                 const courseListHtml = r.courses.map(c => `<div class="course-item text-slate-700 font-medium">${c}</div>`).join('');
                 const countBadge = r.totalCourses > 1 ? `<span class="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full inline-flex items-center">共${r.totalCourses}科</span>` : '';
                 row.innerHTML = `
+                    <td class="px-6 py-2 whitespace-nowrap align-top text-sm font-mono text-slate-500" style="line-height: 0.5rem;">${index + 1}</td>
                     <td class="px-6 py-2 whitespace-nowrap align-top text-sm font-mono text-slate-600 font-bold" style="line-height: 0.5rem;">${r.classSeatDisplay}</td>
                     <td class="px-6 py-2 whitespace-nowrap align-top" style="line-height: 0.5rem;">
                         <div class="text-sm font-medium text-slate-900 flex items-center">${r.name}${countBadge}</div>
@@ -451,17 +597,40 @@
 
         function toggleHistory(rowElement, name, rowId) {
             const floatingDiv = document.getElementById('floatingHistory');
+            const contactSection = document.getElementById('contactInfoSection');
+            const contactContent = document.getElementById('contactInfoContent');
+
             if (rowElement.classList.contains('highlight-row')) { hideFloating(); return; }
             document.querySelectorAll('tr').forEach(tr => tr.classList.remove('highlight-row'));
             rowElement.classList.add('highlight-row');
+            
+            // 處理位置
             const rect = rowElement.getBoundingClientRect();
             const wrapperRect = document.getElementById('tableWrapper').getBoundingClientRect();
             const top = rect.bottom - wrapperRect.top;
             const isMobile = window.innerWidth < 768;
             if (isMobile) { floatingDiv.style.left = '10px'; floatingDiv.style.right = 'auto'; }
-            else { const left = Math.min(rect.right - wrapperRect.left - 300, wrapperRect.width - 340); floatingDiv.style.left = `${left > 0 ? left : 20}px`; }
+            else { const left = Math.min(rect.right - wrapperRect.left - 350, wrapperRect.width - 360); floatingDiv.style.left = `${left > 0 ? left : 20}px`; }
             floatingDiv.style.top = `${top}px`;
             floatingDiv.style.display = 'block';
+
+            // 處理聯絡資訊
+            const contact = getStudentContact(name);
+            if (contact) {
+                contactSection.classList.remove('hidden');
+                let html = `<div><span class="font-bold">監護人：</span>${contact['監護人行動電話']}</div>`;
+                if (contact['家長1姓名'] && contact['家長1姓名'] !== '-') {
+                    html += `<div><span class="font-bold">${contact['家長1姓名']}：</span>${contact['家長1行動電話']}</div>`;
+                }
+                if (contact['家長2姓名'] && contact['家長2姓名'] !== '-') {
+                    html += `<div><span class="font-bold">${contact['家長2姓名']}：</span>${contact['家長2行動電話']}</div>`;
+                }
+                contactContent.innerHTML = html;
+            } else {
+                contactSection.classList.add('hidden');
+            }
+
+            // 處理歷史紀錄
             document.getElementById('historyName').innerText = `${name} 的所有紀錄`;
             const studentRecords = globalRecords.filter(r => r.name === name);
             const listContainer = document.getElementById('historyList');
@@ -503,22 +672,13 @@
             globalRecords = [];
         }
 
-        // --- PDF Modal Logic ---
-        
         function openPDFModal(event) {
             event.stopPropagation();
             const names = getCompletelyUnpaidNames();
-            if (names.length === 0) {
-                alert("目前沒有完全未繳費的學生！");
-                return;
-            }
-
+            if (names.length === 0) { alert("目前沒有完全未繳費的學生！"); return; }
             const listDiv = document.getElementById('pdfStudentList');
             listDiv.innerHTML = '';
-            
-            // 改為列出所有相關的交易紀錄 (以交易為單位)
             const targetRecords = globalRecords.filter(r => names.includes(r.name) && r.status === '未繳費');
-
             targetRecords.forEach(r => {
                 const item = document.createElement('label');
                 item.className = 'flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 cursor-pointer transition';
@@ -534,7 +694,6 @@
                 `;
                 listDiv.appendChild(item);
             });
-
             document.getElementById('pdfModal').style.display = 'flex';
             updatePdfSelection();
         }
@@ -556,17 +715,11 @@
 
         function generatePrint() {
             const checkedInputs = Array.from(document.querySelectorAll('input[name="pdfStudent"]:checked'));
-            if (checkedInputs.length === 0) {
-                alert("請至少選擇一筆交易");
-                return;
-            }
-
+            if (checkedInputs.length === 0) { alert("請至少選擇一筆交易"); return; }
             const dateObj = new Date();
             const rocYear = dateObj.getFullYear() - 1911;
             const month = dateObj.getMonth() + 1;
             const day = dateObj.getDate();
-
-            // 準備 HTML 字串
             let htmlContent = `
                 <!DOCTYPE html>
                 <html>
@@ -576,87 +729,37 @@
                     <style>
                         @page { size: A4; margin: 5mm 10mm; }
                         body { margin: 0; padding: 0; font-family: serif; }
-                        .print-a4-page {
-                            width: 100%;
-                            height: 280mm;
-                            page-break-after: always;
-                            display: table;
-                            border-collapse: collapse;
-                            table-layout: fixed;
-                        }
+                        .print-a4-page { width: 100%; height: 280mm; page-break-after: always; display: table; border-collapse: collapse; table-layout: fixed; }
                         .print-a4-page:last-child { page-break-after: auto; }
                         .print-slip-row { height: 20%; }
-                        .print-slip-cell {
-                            width: 50%;
-                            padding: 0;
-                            vertical-align: middle;
-                            border-bottom: 1px dashed #999;
-                        }
+                        .print-slip-cell { width: 50%; padding: 0; vertical-align: middle; border-bottom: 1px dashed #999; }
                         .print-slip-row:last-child .print-slip-cell { border-bottom: none; }
                         .slip-left-cell { border-right: 1px dashed #000; }
-                        .slip-inner {
-                            padding: 5px 15px;
-                            box-sizing: border-box;
-                            width: 100%;
-                            height: 100%;
-                            display: flex;
-                            flex-direction: column;
-                            justify-content: center;
-                        }
-                        .slip-title {
-                            text-align: center;
-                            font-size: 16px;
-                            font-weight: bold;
-                            margin-bottom: 4px;
-                            text-decoration: underline;
-                                                    }
-                        .slip-subtitle {
-                            text-align: right;
-                            font-size: 10px;
-                            font-weight: normal;
-                            margin-bottom: 2px;
-                        }
-                        .slip-content p {
-                            font-size: 14px;
-                            margin: 4px 0;
-                            line-height: 1.4;
-                            font-family: "KaiTi", "BiauKai", "DFKai-SB", serif;
-                        }
-                        .slip-amount {
-                            margin-top: 8px;
-                            font-weight: bold;
-                            font-size: 15px;
-                        }
-                        .slip-date {
-                            text-align: center;
-                            margin-top: 8px;
-                            font-size: 12px;
-                        }
+                        .slip-inner { padding: 5px 15px; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+                        .slip-title { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; text-decoration: underline; letter-spacing: 2px; }
+                        .slip-subtitle { text-align: right; font-size: 10px; font-weight: normal; margin-bottom: 2px; }
+                        .slip-content p { font-size: 14px; margin: 4px 0; line-height: 1.4; font-family: "KaiTi", "BiauKai", "DFKai-SB", serif; }
+                        .slip-amount { margin-top: 8px; font-weight: bold; font-size: 15px; }
+                        .slip-date { text-align: center; margin-top: 8px; font-size: 12px; }
                     </style>
                 </head>
                 <body>
             `;
-
-            // 每5筆交易一頁
             for (let i = 0; i < checkedInputs.length; i += 5) {
                 const chunk = checkedInputs.slice(i, i + 5);
                 htmlContent += `<table class="print-a4-page"><tbody>`;
-                
                 chunk.forEach(input => {
                     const id = input.value;
                     const r = globalRecords.find(item => item.id === id);
                     if (!r) return;
-
                     const name = r.name;
                     const classSeat = r.classSeatDisplay; 
                     const totalAmount = r.amount;
                     const chineseAmount = toChineseNum(totalAmount);
-                    
                     const parts = classSeat.split(' ');
                     const grade = parts[0][0];
                     const cls = parseInt(parts[0].substring(1));
                     const seat = parseInt(parts[1]);
-
                     const generateInnerHtml = (title) => `
                         <div class="slip-inner">
                             <div class="slip-title">課後社團收費簡易收據</div>
@@ -670,20 +773,13 @@
                             </div>
                         </div>
                     `;
-
                     htmlContent += `
                         <tr class="print-slip-row">
-                            <td class="print-slip-cell slip-left-cell">
-                                ${generateInnerHtml('學校存根聯')}
-                            </td>
-                            <td class="print-slip-cell">
-                                ${generateInnerHtml('家長收執聯')}
-                            </td>
+                            <td class="print-slip-cell slip-left-cell">${generateInnerHtml('學校存根聯')}</td>
+                            <td class="print-slip-cell">${generateInnerHtml('家長收執聯')}</td>
                         </tr>
                     `;
                 });
-
-                // 自動填補空白收據 (New Feature)
                 const needed = 5 - chunk.length;
                 if (needed > 0) {
                     const generateBlankInner = (title) => `
@@ -699,37 +795,22 @@
                             </div>
                         </div>
                     `;
-
                     for (let k = 0; k < needed; k++) {
                         htmlContent += `
                             <tr class="print-slip-row">
-                                <td class="print-slip-cell slip-left-cell">
-                                    ${generateBlankInner('學校存根聯')}
-                                </td>
-                                <td class="print-slip-cell">
-                                    ${generateBlankInner('家長收執聯')}
-                                </td>
+                                <td class="print-slip-cell slip-left-cell">${generateBlankInner('學校存根聯')}</td>
+                                <td class="print-slip-cell">${generateBlankInner('家長收執聯')}</td>
                             </tr>
                         `;
                     }
                 }
-                
                 htmlContent += `</tbody></table>`;
             }
-
-            htmlContent += `
-                <script>
-                    window.onload = function() { window.print(); }
-                <\/script>
-                </body></html>
-            `;
-
-            // 建立 Blob 並開啟 (UTF-8)
+            htmlContent += `<script>window.onload = function() { window.print(); }<\/script></body></html>`;
             const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
         }
-
     </script>
 </body>
 </html>
