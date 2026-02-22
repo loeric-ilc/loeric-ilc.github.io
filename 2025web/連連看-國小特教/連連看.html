@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>連連看-國小特教適用</title>
+    <style>
+        :root { 
+            --print-orientation: landscape; 
+            --item-height: 100px;
+            --toggle-on-color: #81C784; 
+            --toggle-off-color: #e0e0e0; 
+        }
+
+        body {
+            font-family: "微軟正黑體", sans-serif;
+            background-color: #f4f7f6;
+            margin: 0; padding: 0;
+            height: 100vh; width: 100vw;
+            overflow: hidden;
+        }
+        
+        #device-blocker {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #2c3e50, #000000);
+            z-index: 9999; color: white;
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 40px; box-sizing: border-box;
+        }
+        #device-blocker .icon { font-size: 5rem; margin-bottom: 20px; animation: pulse 2s infinite; }
+        #device-blocker h2 { font-size: 2rem; margin-bottom: 15px; color: #ff5252; }
+        #device-blocker p { font-size: 1.2rem; color: #ddd; line-height: 1.6; }
+
+        @media screen and (max-width: 767px) {
+            #device-blocker { display: flex !important; }
+            .msg-rotate { display: none; }
+            .msg-mobile { display: block; }
+            .page-view { display: none !important; }
+        }
+
+        @media screen and (min-width: 768px) and (orientation: portrait) {
+            #device-blocker { display: flex !important; }
+            .msg-mobile { display: none; }
+            .msg-rotate { display: block; }
+            .page-view { display: none !important; }
+        }
+      
+        .page-view {
+            display: none; width: 100%; height: 100%; box-sizing: border-box; 
+        }
+        .page-view.active {
+            display: flex; flex-direction: column; animation: fadeIn 0.4s;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+       
+        #view-setup { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            padding: 0; align-items: center; justify-content: center;
+        }
+
+        .setup-container {
+            background:#FFE4CA; 
+            width: 600px; max-width: 95%; height: auto; max-height: 95vh;
+            border-radius: 25px; box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            padding: 40px; box-sizing: border-box;
+            display: flex; flex-direction: column; 
+        }
+
+        .setup-header { 
+            text-align: center; margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px;
+        }
+        .setup-header h1 { margin: 0; color: #333; font-size: 2rem; letter-spacing: 2px; }
+        .setup-header span { color: #888; font-size: 0.9rem; }
+
+        .config-form {
+            display: flex; flex-direction: column; gap: 20px;
+            flex: 1; overflow-y: auto; padding: 5px;
+        }
+
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #444; font-size: 1.1rem; }
+        .form-group select, .form-group input { 
+            width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 12px; 
+            font-size: 1.1rem; box-sizing: border-box; transition: 0.3s; background: #fafafa;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: #2196F3; background: #fff; outline: none; }
+
+        .upload-btn-box {
+            border: 2px dashed #2196F3; background-color: #e3f2fd;
+            border-radius: 12px; padding: 15px; text-align: center;
+            cursor: pointer; transition: all 0.3s; color: #1565C0;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            font-size: 1.1rem; font-weight: bold; margin-bottom: 5px;
+        }
+        .upload-btn-box:hover { background-color: #bbdefb; transform: scale(1.02); }
+        
+        #status-text { font-size: 0.95rem; color: #666; margin-top: 5px; text-align: right; font-weight: bold; }
+
+        .setup-footer { margin-top: 30px; }
+        .btn-start-game {
+            width: 100%; padding: 15px; font-size: 1.5rem; background-color: #4CAF50; color: white;
+            border: none; border-radius: 50px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3); transition: transform 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-start-game:hover { transform: translateY(-3px); background-color: #43A047; }
+       
+        #view-game { background-color: #f0f8ff; overflow: hidden; }
+        
+        .game-controls {
+            flex: 0 0 auto; display: flex; gap: 10px; margin: 15px;
+            background: white; padding: 8px 25px; border-radius: 50px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); align-items: center; flex-wrap: wrap; justify-content: center;
+            z-index: 100;
+        }
+        .action-btn {
+            padding: 8px 16px; font-size: 1rem; border-radius: 25px;
+            border: 1px solid #ccc; background: #fff; cursor: pointer; font-weight: bold;
+            display: flex; align-items: center; gap: 5px; white-space: nowrap;
+        }
+        .btn-back { background-color: #FF9800; color: white; border: none; }
+        .btn-refresh { background-color: #2196F3; color: white; border: none; }
+        .btn-print { background-color: #607D8B; color: white; border: none; }
+        .btn-full { background-color: #9C27B0; color: white; border: none; }
+       
+        .cute-toggle-container {
+            display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0 10px; 
+        }
+        .cute-toggle-input { display: none; }
+        .cute-toggle-track {
+            position: relative; width: 54px; height: 28px;
+            background-color: var(--toggle-off-color);
+            border-radius: 30px; transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .cute-toggle-knob {
+            position: absolute; top: 3px; left: 3px;
+            width: 22px; height: 22px; background-color: white;
+            border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+        }
+        .cute-toggle-input:checked + .cute-toggle-track { background-color: var(--toggle-on-color); }
+        .cute-toggle-input:checked + .cute-toggle-track .cute-toggle-knob { transform: translateX(26px); }
+        .cute-toggle-text { font-weight: bold; color: #555; font-size: 1.05rem; }
+
+        #game-wrapper {
+            flex: 1; width: 100%; overflow-y: auto; 
+            display: flex; justify-content: center; padding-bottom: 40px;
+        }
+
+        #game-container {
+            position: relative; width: 900px; height: auto;
+            background: white; border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: flex; justify-content: space-between;
+            padding: 30px 50px; box-sizing: border-box;
+            user-select: none; margin-bottom: 50px;
+        }
+
+        #line-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+
+        .column { display: flex; flex-direction: column; justify-content: space-between; width: 22%; z-index: 20; position: relative; }
+
+        .item {
+            width: 100%; 
+            height: var(--item-height);
+            min-height: var(--item-height); 
+            flex: 0 0 var(--item-height);   
+            border: 4px solid #ddd; border-radius: 15px;
+            cursor: pointer; display: flex; justify-content: center; align-items: center;
+            background-color: #fff; transition: all 0.3s;
+            position: relative; box-sizing: border-box; margin-bottom: 20px;
+        }
+        
+        .item img { width: 85%; height: 85%; object-fit: contain; pointer-events: none; transition: all 0.3s; }
+       
+        .item-text { 
+            font-family: "標楷體", "DFKai-SB", serif; 
+            font-size: 3.5rem; 
+            font-weight: 900; 
+            color: #444; 
+            pointer-events: none; white-space: nowrap; transition: all 0.3s; 
+        }
+        .item-text.len-3 { font-size: 2.8rem; }
+        .item-text.len-4 { font-size: 2.2rem; }
+        
+        .item:hover { border-color: #aaa; transform: scale(1.02); }
+        .item.selected { border-color: #ff9800 !important; background-color: #fff3e0 !important; box-shadow: 0 0 15px rgba(255, 152, 0, 0.5); }
+        .item.wrong { border-color: #F44336; background-color: #ffebee; animation: shake 0.5s; }
+       
+        .item.matched { border-color: #ccc; background-color: #f5f5f5; cursor: default; box-shadow: none; }
+        .item.matched img { filter: grayscale(100%); opacity: 0.4; }
+        .item.matched .item-text { color: #ccc; }
+        .item.matched:hover { transform: none; border-color: #ccc; }
+        .item.matched::after {
+            content: '✔'; position: absolute; font-size: 60px; color: #999;
+            font-weight: bold; text-shadow: 2px 2px 0px white; z-index: 100; 
+            pointer-events: none; animation: popIn 0.3s; opacity: 0.6;
+        }
+
+        .item.wrong::after {
+            content: '✖'; position: absolute; font-size: 60px; color: #F44336;
+            font-weight: bold; text-shadow: 2px 2px 0px white; z-index: 100; animation: popIn 0.3s;
+        }
+      
+        .item.pending-link { border-color: #2196F3; background-color: #e3f2fd; }
+
+        .dot {
+            position: absolute; width: 20px; height: 20px;
+            background-color: #333; border-radius: 50%;
+            top: 50%; transform: translateY(-50%); z-index: 60;
+        }
+        .dot.left { left: -26px; }
+        .dot.right { right: -26px; }
+        .item.matched .dot { background-color: #ccc; }
+        .item.pending-link .dot { background-color: #2196F3; } 
+        
+        #celebration-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); 
+            z-index: 10000;
+            justify-content: center; align-items: center;
+            animation: fadeIn 0.5s;
+        }
+        .celebration-content {
+            background: white; padding: 40px 60px; border-radius: 30px;
+            text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            border: 5px solid #FF9800;
+            animation: bounceIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .celebration-text { font-size: 3rem; color: #333; font-weight: bold; margin: 20px 0; }
+        .celebration-icon { font-size: 5rem; }
+
+        #resume-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 500;
+            flex-direction: column; justify-content: center; align-items: center;
+            color: white; cursor: pointer;
+        }
+        #resume-overlay h2 { font-size: 2.5rem; margin-bottom: 20px; }
+        #resume-overlay p { font-size: 1.5rem; color: #ddd; }
+        #resume-overlay .icon { font-size: 5rem; margin-bottom: 20px; animation: pulse 1.5s infinite; }
+       
+        .print-header {
+            display: none; width: 100%; padding: 10px 30px; box-sizing: border-box;
+            border-bottom: 3px solid #333; margin-bottom: 20px;
+        }
+        
+        #print-title-display { 
+            font-family: "標楷體", "DFKai-SB", serif; 
+            font-size: 2.0rem; 
+            font-weight: 900; 
+            text-align: center; 
+            letter-spacing: 5px; 
+        }
+
+        .print-info { 
+            font-family: "標楷體", "DFKai-SB", serif; 
+            display: flex; 
+            justify-content: flex-end; 
+            gap: 30px; 
+            font-size: 1.4rem; 
+            font-weight: bold;
+            margin-top: 15px; 
+        }
+
+        @media print {
+            @page { size: var(--print-orientation); margin: 5mm; }
+            body { background: white; padding: 0; display: block; height: 100%; overflow: visible; }
+            #device-blocker, #view-setup, .game-controls, #celebration-modal, #resume-overlay { display: none !important; }
+            #view-game { display: block !important; padding: 0; background: white; overflow: visible; }
+            #game-wrapper { display: block !important; overflow: visible !important; padding: 0 !important; }
+            .print-header { display: block; }
+            #line-canvas { display: block !important; z-index: 50 !important; }
+            #game-container {
+                box-shadow: none; width: 96% !important; margin: 0 auto !important;
+                height: auto; border: none; padding: 0 !important; justify-content: space-between;
+            }
+            .column { height: 600px !important; width: 22% !important; justify-content: space-between; }
+            .item {
+                border: 3px solid #000; box-shadow: none; background: white !important;
+                width: 100% !important; box-sizing: border-box !important;
+                height: var(--item-height) !important; margin: 0 !important; opacity: 1 !important;
+            }
+            .item img { filter: none !important; opacity: 1 !important; max-width: 95% !important; max-height: 95% !important;}
+            
+            .item-text { 
+                font-family: "標楷體", "DFKai-SB", serif !important;
+                font-size: 5.5rem !important; color: #000 !important; font-weight: 900 !important; 
+            }
+            .item-text.len-3 { font-size: 4.0rem !important; }
+            .item-text.len-4 { font-size: 3.0rem !important; }
+            .item.matched::after, .item.wrong::after { display: none !important; }
+            .item.matched, .item.wrong, .item.pending-link { border-color: #000 !important; background: white !important; }
+            .dot { 
+                background-color: #000 !important; z-index: 60 !important; 
+                width: 18px !important; height: 18px !important; 
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                border: 9px solid #000 !important; 
+            }
+        }
+
+        @media print and (orientation: landscape) {
+            .column { height: 520px !important; } 
+            #game-container[data-count="5"], #game-container[data-count="4"] {
+                zoom: 0.7; width: 143% !important; margin-left: -21.5% !important; 
+                --item-height: 120px !important; 
+            }
+            #game-container[data-count="3"] { --item-height: 160px !important; }
+            #game-container[data-count="2"] { --item-height: 240px !important; }
+        }
+
+        @media print and (orientation: portrait) {
+            .column { height: 950px !important; } 
+            #game-container[data-count="5"] { --item-height: 155px !important; }
+            #game-container[data-count="4"] { --item-height: 200px !important; }
+            #game-container[data-count="3"] { --item-height: 270px !important; }
+            #game-container[data-count="2"] { --item-height: 400px !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="device-blocker">
+        <div class="msg-mobile">
+            <div class="icon">⛔📱</div>
+            <h2>本系統不支援手機</h2>
+            <p>為了最佳的教學與操作體驗<br>請改用 電腦、筆電 或 平板 開啟。</p>
+        </div>
+        <div class="msg-rotate">
+            <div class="icon">🔄</div>
+            <h2>請旋轉螢幕</h2>
+            <p>請將您的裝置轉為<br><b>橫式 (Landscape)</b> 以繼續使用。</p>
+        </div>
+    </div>
+
+    <div id="view-setup" class="page-view active">
+        <div class="setup-container">
+            <div class="setup-header">
+                <h1>✨連連看-國小特教適用</h1>
+            </div>
+            <div class="config-form">
+                
+                <div class="form-group">
+                    <label>🖼️載入圖片 (支援jpg、jpeg、png)</label>
+                    <label class="upload-btn-box">
+                        <input type="file" multiple accept="image/*" style="display:none" onchange="handleBatchUpload(this)">
+                        <span style="font-size:1.5rem;">📂</span>
+                        <span>點擊載入圖片 (支援多選)</span>
+                    </label>
+                    <div id="status-text">目前狀態：讀取中...</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>🖊️教材標題</label>
+                    <input type="text" id="setting-title" value="國小特教班學習單-連連看">
+                </div>
+                
+                <!-- 新增：出題類別選單 -->
+                <div class="form-group">
+                    <label>📚出題類別</label>
+                    <select id="setting-category" onchange="handleCategoryChange()">
+                        <option value="fruits">水果類</option>
+                        <option value="daily">生活用品 (牙刷、水杯、球類等)</option>
+                        <option value="vehicles">交通工具</option>
+                        <option value="animals">動物類</option>
+                        <option value="custom" id="opt-custom" style="display:none;">自訂圖庫</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>📜單一頁題數</label>
+                    <select id="setting-count">
+                        <option value="2">2 題 (特大)</option>
+                        <option value="3">3 題 (大)</option>
+                        <option value="4" selected>4 題 (標準)</option>
+                        <option value="5">5 題 (緊湊)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>📋排列模式</label>
+                    <select id="setting-mode">
+                        <option value="img-img">圖 - 圖</option>
+                        <option value="img-text">圖 - 文</option>
+                        <option value="img-text-img">圖 - 文 - 圖</option>
+                        <option value="img-img-text">圖 - 圖 - 文</option>
+                        <option value="text-img-text">文 - 圖 - 文</option>
+                    </select>
+                </div>
+
+            </div>
+            <div class="setup-footer">
+                <button class="btn-start-game" onclick="goToGamePage()"><span>▶</span> 開始遊戲 🎮</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-game" class="page-view">
+        <div class="print-header">
+            <div id="print-title-display">特教班學習單-連連看</div>
+            <div class="print-info">
+                <span>班級：__________</span>
+		        <span>座號：_____</span>
+                <span>姓名：_______________</span>
+                <span>得分：__________</span>
+            </div>
+        </div>
+        <div class="game-controls">
+            <button class="action-btn btn-back" onclick="goToSetupPage()">⚙️ 返回設定</button>
+            <div style="width: 2px; background:#ddd; margin:0 10px;"></div>
+            <button class="action-btn btn-refresh" onclick="startGame()">🔄 重新出題</button>
+            <label class="cute-toggle-container">
+                <input type="checkbox" id="hint-toggle" class="cute-toggle-input" checked onchange="drawLines()">
+                <span class="cute-toggle-track"><span class="cute-toggle-knob"></span></span>
+                <span class="cute-toggle-text">顯示提示線</span>
+            </label>
+            <div style="width: 2px; background:#ddd; margin:0 10px;"></div>
+            <button class="action-btn btn-print" onclick="printPage('portrait')">🖨️ 印直式</button>
+            <button class="action-btn btn-print" onclick="printPage('landscape')">🖨️ 印橫式</button>
+            <button class="action-btn btn-full" onclick="enterFullScreen()">⛶ 全螢幕</button>
+        </div>
+        <div id="game-wrapper">
+            <div id="game-container">
+                <canvas id="line-canvas"></canvas>
+                <div id="cols-container" style="display:flex; justify-content:space-between; width:100%; height:100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="celebration-modal">
+        <div class="celebration-content">
+            <div class="celebration-icon">🎉</div>
+            <div class="celebration-text">好棒！你不錯唷！！</div>
+        </div>
+    </div>
+
+    <div id="resume-overlay" onclick="handleResume()">
+        <div class="icon">🎮</div>
+        <h2>列印視窗已關閉</h2>
+        <p>點擊🎮，回到遊戲</p>
+    </div>
+
+    <audio id="sound-correct" src="mp3/correct.mp3" onerror="this.src='https://actions.google.com/sounds/v1/cartoon/pop.ogg'"></audio>
+    <audio id="sound-wrong" src="mp3/wrong.mp3" onerror="this.src='https://actions.google.com/sounds/v1/cartoon/clank_car_crash.ogg'"></audio>
+    <audio id="sound-applause" src="mp3/applause.mp3"></audio>
+
+    <script>
+        // --- 內建圖庫資料 ---
+        const builtinDatabases = {
+            fruits: [
+				{ id: 'f1', img: 'https://img.icons8.com/color/512/apple.png', text: '蘋果' },
+				{ id: 'f2', img: 'https://img.icons8.com/color/512/banana.png', text: '香蕉' },
+				{ id: 'f3', img: 'https://img.icons8.com/color/512/orange.png', text: '橘子' },
+				{ id: 'f4', img: 'https://img.icons8.com/color/512/grapes.png', text: '葡萄' },
+				{ id: 'f5', img: 'https://img.icons8.com/color/512/watermelon.png', text: '西瓜' },
+				{ id: 'f6', img: 'https://img.icons8.com/color/512/strawberry.png', text: '草莓' }
+            ],
+            daily: [
+				{ id: 'd1', img: 'https://img.icons8.com/color/512/toothbrush.png', text: '牙刷' },
+				{ id: 'd2', img: 'https://img.icons8.com/color/512/glass-of-water.png', text: '水杯' }, 
+				{ id: 'd3', img: 'https://img.icons8.com/color/512/beach-ball.png', text: '皮球' }, // 使用彩色沙灘球（beach-ball），色彩豐富且非常明顯
+				{ id: 'd4', img: 'https://img.icons8.com/color/512/towel.png', text: '毛巾' },
+				{ id: 'd5', img: 'https://img.icons8.com/color/512/soap.png', text: '肥皂' },
+				{ id: 'd6', img: 'https://img.icons8.com/color/512/comb.png', text: '梳子' }
+            ],
+            vehicles: [
+				{ id: 'v1', img: 'https://img.icons8.com/color/512/car.png', text: '汽車' },
+				{ id: 'v2', img: 'https://img.icons8.com/color/512/bus.png', text: '公車' },
+				{ id: 'v3', img: 'https://img.icons8.com/color/512/airplane.png', text: '飛機' },
+				{ id: 'v4', img: 'https://img.icons8.com/color/512/train.png', text: '火車' },
+				{ id: 'v5', img: 'https://img.icons8.com/color/512/bicycle.png', text: '腳踏車' },
+				{ id: 'v6', img: 'https://img.icons8.com/color/512/boat.png', text: '船' }
+            ],
+            animals: [
+				{ id: 'a1', img: 'https://img.icons8.com/color/512/cat.png', text: '貓咪' },
+				{ id: 'a2', img: 'https://img.icons8.com/color/512/dog.png', text: '小狗' },
+				{ id: 'a3', img: 'https://img.icons8.com/color/512/rabbit.png', text: '兔子' },
+				{ id: 'a4', img: 'https://img.icons8.com/color/512/elephant.png', text: '大象' },
+				{ id: 'a5', img: 'https://img.icons8.com/color/512/lion.png', text: '獅子' },
+				{ id: 'a6', img: 'https://img.icons8.com/color/512/monkey.png', text: '猴子' }
+            ]
+        };
+
+        let customPool = [];
+        let poolData = [];
+
+        let currentVoices = [];
+        let connections = [];
+        let selectedItem = null;
+        let isDrawing = false;
+        let isPrinting = false;
+        let tempWrongLine = null;
+
+        window.onload = function() {
+            window.speechSynthesis.getVoices(); 
+            handleCategoryChange(); // 初始化資料庫與文字狀態
+            window.addEventListener("afterprint", () => {
+                setTimeout(() => { document.getElementById('resume-overlay').style.display = 'flex'; }, 500);
+            });
+        };
+
+        // --- 分類切換邏輯 ---
+        function handleCategoryChange() {
+            const cat = document.getElementById('setting-category').value;
+            if (cat === 'custom') {
+                poolData = [...customPool];
+                document.getElementById('status-text').innerText = `目前狀態：已選用自訂圖庫 (${poolData.length} 張)`;
+                document.getElementById('status-text').style.color = '#4CAF50';
+            } else {
+                poolData = [...builtinDatabases[cat]];
+                const catName = document.getElementById('setting-category').options[document.getElementById('setting-category').selectedIndex].text;
+                document.getElementById('status-text').innerText = `目前狀態：使用系統預設 - ${catName} (${poolData.length} 張)`;
+                document.getElementById('status-text').style.color = '#666';
+            }
+        }
+
+        function enterFullScreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) { elem.requestFullscreen().catch(err => {}); } 
+            else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); } 
+            else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
+        }
+
+        function exitFullScreen() {
+            if (document.exitFullscreen) { document.exitFullscreen().catch(err => {}); } 
+            else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); } 
+            else if (document.msExitFullscreen) { document.msExitFullscreen(); }
+        }
+
+        function handleResume() {
+            enterFullScreen();
+            document.getElementById('resume-overlay').style.display = 'none';
+            setTimeout(resizeCanvas, 200);
+        }
+
+        function goToGamePage() {
+            const count = parseInt(document.getElementById('setting-count').value);
+            if (poolData.length < count) {
+                alert(`資料不足！\n您設定每頁 ${count} 題，但目前圖庫只有 ${poolData.length} 張圖。\n請調整題數或上傳更多圖片。`);
+                return;
+            }
+            enterFullScreen(); 
+            document.getElementById('view-setup').classList.remove('active');
+            document.getElementById('view-game').classList.add('active');
+            
+            const titleVal = document.getElementById('setting-title').value;
+            document.getElementById('print-title-display').innerText = titleVal;
+            document.title = titleVal; 
+            
+            startGame();
+        }
+
+        function goToSetupPage() {
+            exitFullScreen(); 
+            document.getElementById('view-game').classList.remove('active');
+            document.getElementById('view-setup').classList.add('active');
+        }
+
+        function handleBatchUpload(input) {
+            if (input.files && input.files.length > 0) {
+                customPool = []; 
+                let loadedCount = 0;
+                const totalFiles = input.files.length;
+                Array.from(input.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const name = file.name.replace(/\.[^/.]+$/, "");
+                        customPool.push({ id: 'new_' + Date.now() + Math.random(), img: e.target.result, text: name });
+                        loadedCount++;
+                        if(loadedCount === totalFiles) {
+                            // 自動切換到自訂圖庫
+                            document.getElementById('opt-custom').style.display = 'block';
+                            document.getElementById('setting-category').value = 'custom';
+                            handleCategoryChange();
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        }
+
+        function speakText(text) {
+            const utt = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            let targetVoice = voices.find(v => v.name.includes('Google') && v.name.includes('國語'));
+            if (!targetVoice) targetVoice = voices.find(v => v.lang === 'zh-TW');
+            if(targetVoice) utt.voice = targetVoice;
+            window.speechSynthesis.speak(utt);
+        }
+
+        // --- 防呆機制：若圖片失效則轉成對應 Emoji ---
+        function getFallbackSvg(text) {
+            const map = {
+                '蘋果':'🍎', '香蕉':'🍌', '橘子':'🍊', '葡萄':'🍇', '西瓜':'🍉', '草莓':'🍓',
+                '牙刷':'🪥', '水杯':'🥤', '皮球':'🏀', '毛巾':'🧣', '肥皂':'🧼', '梳子':'🪮',
+                '汽車':'🚗', '公車':'🚌', '飛機':'✈️', '火車':'🚂', '腳踏車':'🚲', '船':'⛵',
+                '貓咪':'🐱', '小狗':'🐶', '兔子':'🐰', '大象':'🐘', '獅子':'🦁', '猴子':'🐵'
+            };
+            const emoji = map[text] || '📦';
+            return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="80">${emoji}</text></svg>`;
+        }
+
+        function startGame() {
+            const count = parseInt(document.getElementById('setting-count').value);
+            document.getElementById('game-container').dataset.count = count;
+            const mode = document.getElementById('setting-mode').value;
+            const shuffledPool = [...poolData].sort(() => 0.5 - Math.random());
+            const activeItems = shuffledPool.slice(0, count);
+            
+            const container = document.getElementById('cols-container');
+            container.innerHTML = '';
+            connections = []; selectedItem = null; isDrawing = false; tempWrongLine = null;
+            
+            const colTypes = mode.split('-');
+            const colWidth = '22%'; 
+            const heightMap = { 2: '220px', 3: '170px', 4: '130px', 5: '100px' };
+            const itemHeight = heightMap[count];
+            document.getElementById('game-container').style.setProperty('--item-height', itemHeight);
+
+            colTypes.forEach((type, colIndex) => {
+                const colDiv = document.createElement('div');
+                colDiv.className = 'column';
+                colDiv.style.width = colWidth;
+                const shuffledItems = [...activeItems].sort(() => 0.5 - Math.random());
+                shuffledItems.forEach(data => {
+                    const el = document.createElement('div');
+                    el.className = 'item';
+                    el.dataset.id = data.id;
+                    el.dataset.colIndex = colIndex;
+                    
+                    if(type === 'img') {
+                        const img = document.createElement('img'); 
+                        img.src = data.img; 
+                        img.onerror = function() { this.src = getFallbackSvg(data.text); };
+                        el.appendChild(img);
+                    } else {
+                        const span = document.createElement('span'); 
+                        span.className = 'item-text'; 
+                        span.innerText = data.text;
+                        const len = data.text.length;
+                        if(len === 3) { span.classList.add('len-3'); }
+                        else if(len >= 4) { span.classList.add('len-4'); }
+                        el.appendChild(span);
+                    }
+
+                    if(colIndex > 0) { const d = document.createElement('div'); d.className = 'dot left'; el.appendChild(d); }
+                    if(colIndex < colTypes.length - 1) { const d = document.createElement('div'); d.className = 'dot right'; el.appendChild(d); }
+                    
+                    el.addEventListener('mousedown', handleInputStart);
+                    el.addEventListener('touchstart', handleInputStart, {passive: false});
+                    colDiv.appendChild(el);
+                });
+                container.appendChild(colDiv);
+            });
+            resizeCanvas();
+        }
+
+        const canvas = document.getElementById('line-canvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+
+        function resizeCanvas() {
+            canvas.width = gameContainer.offsetWidth;
+            canvas.height = gameContainer.offsetHeight;
+            drawLines();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function handleInputStart(e) {
+            if (isPrinting) return;
+            const item = e.target.closest('.item');
+            if (!item || item.classList.contains('matched')) return; 
+            
+            e.preventDefault();
+
+            if (selectedItem === item) {
+                selectedItem.classList.remove('selected'); selectedItem = null; isDrawing = false;
+            } else if (selectedItem) {
+                const diff = Math.abs(item.dataset.colIndex - selectedItem.dataset.colIndex);
+                if (diff === 1) {
+                    checkMatch(selectedItem, item);
+                    selectedItem.classList.remove('selected'); selectedItem = null; isDrawing = false;
+                } else {
+                    selectedItem.classList.remove('selected'); selectedItem = item; item.classList.add('selected'); isDrawing = true;
+                }
+            } else {
+                selectedItem = item; item.classList.add('selected'); isDrawing = true;
+            }
+            drawLines();
+        }
+
+        function checkMatch(item1, item2) {
+            const id1 = item1.dataset.id; const id2 = item2.dataset.id;
+            const exists = connections.some(c => (c.start === item1 && c.end === item2) || (c.start === item2 && c.end === item1));
+            if(exists) return;
+
+            if (id1 === id2) {
+                const left = parseInt(item1.dataset.colIndex) < parseInt(item2.dataset.colIndex) ? item1 : item2;
+                const right = left === item1 ? item2 : item1;
+                connections.push({start: left, end: right, color: '#2196F3'});
+                left.classList.add('pending-link');
+                right.classList.add('pending-link');
+                playSound('correct'); 
+                validateChain(id1);
+            } else {
+                playSound('wrong');
+                item1.classList.add('wrong'); item2.classList.add('wrong');
+                tempWrongLine = { p1: getDotPos(item1, parseInt(item1.dataset.colIndex) < parseInt(item2.dataset.colIndex) ? 'right' : 'left'), p2: getDotPos(item2, parseInt(item1.dataset.colIndex) < parseInt(item2.dataset.colIndex) ? 'left' : 'right') };
+                setTimeout(() => {
+                    item1.classList.remove('wrong'); item2.classList.remove('wrong');
+                    tempWrongLine = null; drawLines();
+                }, 1000);
+            }
+            drawLines();
+        }
+
+        function validateChain(id) {
+            const totalCols = document.querySelectorAll('.column').length;
+            const chainLinks = connections.filter(c => c.start.dataset.id === id || c.end.dataset.id === id);
+            
+            if (chainLinks.length === totalCols - 1) {
+                document.querySelectorAll(`.item[data-id="${id}"]`).forEach(el => {
+                    el.classList.remove('pending-link');
+                    el.classList.add('matched');
+                });
+                chainLinks.forEach(c => c.color = '#ccc'); 
+                const text = poolData.find(d => d.id === id).text;
+                speakText(text);
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            const totalItems = document.querySelectorAll('.item').length;
+            const matchedItems = document.querySelectorAll('.item.matched').length;
+            
+            if (totalItems > 0 && totalItems === matchedItems) {
+                setTimeout(() => { showCelebration(); }, 500);
+            }
+        }
+
+        function showCelebration() {
+            const modal = document.getElementById('celebration-modal');
+            modal.style.display = 'flex';
+            playSound('applause');
+            
+            const utt = new SpeechSynthesisUtterance("好棒！你不錯唷！！");
+            const voices = window.speechSynthesis.getVoices();
+            let targetVoice = voices.find(v => v.name.includes('Google') && v.name.includes('國語'));
+            if (!targetVoice) targetVoice = voices.find(v => v.lang === 'zh-TW');
+            if(targetVoice) utt.voice = targetVoice;
+            
+            setTimeout(() => { window.speechSynthesis.speak(utt); }, 500);
+            setTimeout(() => { modal.style.display = 'none'; }, 3000);
+        }
+
+        function getDotPos(el, side) {
+            const rect = gameContainer.getBoundingClientRect();
+            const dot = el.querySelector(`.dot.${side}`);
+            if(!dot) return {x:0,y:0}; 
+            const r = dot.getBoundingClientRect();
+            return { x: r.left + r.width/2 - rect.left, y: r.top + r.height/2 - rect.top };
+        }
+
+        function drawLines() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (isPrinting) return; 
+
+            const rect = gameContainer.getBoundingClientRect();
+            const showHint = document.getElementById('hint-toggle').checked;
+
+            if(showHint && selectedItem) {
+                const myId = selectedItem.dataset.id;
+                const myCol = parseInt(selectedItem.dataset.colIndex);
+                [myCol-1, myCol+1].forEach(targetColIdx => {
+                    const cols = document.querySelectorAll('.column');
+                    if(targetColIdx >= 0 && targetColIdx < cols.length) {
+                        const targetCol = cols[targetColIdx];
+                        const targetItem = Array.from(targetCol.querySelectorAll('.item')).find(el => el.dataset.id === myId);
+                        const connected = connections.some(c => (c.start === selectedItem && c.end === targetItem) || (c.start === targetItem && c.end === selectedItem));
+                        
+                        if(targetItem && !connected && !targetItem.classList.contains('matched')) {
+                            const p1 = getDotPos(selectedItem, targetColIdx > myCol ? 'right' : 'left');
+                            const p2 = getDotPos(targetItem, targetColIdx > myCol ? 'left' : 'right');
+                            drawGuideLine(p1, p2);
+                        }
+                    }
+                });
+            }
+
+            connections.forEach(c => {
+                const p1 = getDotPos(c.start, 'right');
+                const p2 = getDotPos(c.end, 'left');
+                drawLine(p1, p2, c.color, 5);
+            });
+
+            if(tempWrongLine) {
+                 drawLine(tempWrongLine.p1, tempWrongLine.p2, '#F44336', 5);
+            }
+        }
+
+        function drawLine(p1, p2, color, w) {
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
+            ctx.setLineDash([]); ctx.stroke();
+        }
+
+        function drawGuideLine(p1, p2) {
+            const color = "rgba(200,200,200,0.5)";
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color; ctx.lineWidth = 6;
+            ctx.lineCap = 'round'; ctx.setLineDash([8, 8]); ctx.stroke();
+        }
+
+        function printPage(o) {
+            document.documentElement.style.setProperty('--print-orientation', o);
+            isPrinting = true;
+            setTimeout(() => {
+                resizeCanvas();
+                setTimeout(() => { window.print(); isPrinting = false; resizeCanvas(); }, 500);
+            }, 100);
+        }
+
+        function playSound(id) {
+            const aud = document.getElementById('sound-'+id);
+            if(aud) { aud.currentTime = 0; aud.play().catch(e=>{}); }
+        }
+    </script>
+</body>
+</html>
