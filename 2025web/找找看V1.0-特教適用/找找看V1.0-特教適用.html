@@ -1,0 +1,883 @@
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>找找看V1.0-特教適用</title>
+    <style>
+        :root {
+            --primary-color: #FFD700;
+            --secondary-color: #4CAF50;
+            --bg-color: #333;
+            --sidebar-width: 330px;
+            --bottom-bar-height: 150px;
+        }
+        
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: '微軟正黑體', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        #canvas-wrapper, canvas, .target-item {
+            cursor: url('aim.png') 16 16, crosshair; 
+        }
+        #sidebar, #game-ui { cursor: default; }
+
+        #main-container {
+            display: flex; flex: 1; width: 100%; overflow: hidden;
+        }
+
+        #canvas-wrapper {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            background-color: #444; position: relative; padding: 10px;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); display: block; 
+            transition: filter 0.5s ease;
+        }
+
+        #empty-msg {
+            color: #aaa; font-size: 1.5rem; position: absolute; pointer-events: none;
+        }
+
+        #sidebar {
+            width: var(--sidebar-width); background: #f4f4f4;
+            display: flex; flex-direction: column; border-left: 2px solid #222;
+            transition: transform 0.3s ease; z-index: 200;
+        }
+        #sidebar.collapsed { display: none; }
+
+        .sidebar-header {
+            padding: 15px; background: #ddd; border-bottom: 1px solid #ccc; text-align: center;
+        }
+        .sidebar-content {
+            padding: 15px; overflow-y: auto; flex: 1;
+        }
+
+        .control-group {
+            background: white; padding: 10px; border-radius: 8px;
+            margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .control-group label {
+            display: block; font-weight: bold; margin-bottom: 5px; color: #333;
+        }
+
+        .shape-selector {
+            display: flex; gap: 10px; margin-bottom: 10px;
+        }
+        .shape-option {
+            flex: 1; text-align: center; padding: 8px;
+            background: #eee; border: 2px solid #ddd; border-radius: 8px;
+            cursor: pointer; font-weight: bold; transition: all 0.2s;
+        }
+        .shape-option.active {
+            background: #fffbe6; border-color: var(--primary-color);
+            box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+
+        .item-list { display: flex; flex-direction: column; gap: 5px; }
+        .item-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #fff; padding: 8px; border: 1px solid #ddd;
+            border-radius: 5px; font-size: 0.9rem;
+        }
+
+        button {
+            cursor: pointer; border: none; border-radius: 5px;
+            padding: 8px 12px; font-size: 1rem; transition: all 0.2s;
+        }
+        button.primary {
+            background-color: var(--primary-color); color: #000; width: 100%;
+            font-weight: bold; margin-bottom: 10px; box-shadow: 0 2px 0 #b89b00;
+        }
+        button.primary:active { transform: translateY(2px); box-shadow: none; }
+        button.danger { background-color: #ffdddd; color: #d00; border: 1px solid #ffbbbb; width: 100%; }
+        button.danger-small { background: none; color: #d00; font-size: 1.2rem; padding: 0 5px; }
+        button.success {
+            background-color: #4CAF50; color: white; border: 2px solid #388E3C; font-weight: bold; width: 100%;
+        }
+        button.success:hover { background-color: #45a049; }
+
+        #game-bottom-bar {
+            height: var(--bottom-bar-height); background: white; border-top: 4px solid #333;
+            display: none; justify-content: center; align-items: center;
+            gap: 15px; overflow-x: auto; width: 100%; padding: 0 10px;
+        }
+        #game-bottom-bar.active { display: flex; }
+
+        .target-item {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 5px; border-radius: 10px; background: #fff;
+            border: 2px solid #ddd; min-width: 90px; cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .target-item:active { transform: scale(0.95); }
+        
+        .target-item img {
+            width: 75px; height: 75px; object-fit: cover;
+            border: 3px solid #333; margin-bottom: 5px; background: #eee;
+        }
+        .target-item span { font-weight: bold; color: #333; font-size: 1rem; }
+
+        .target-item.found {
+            background-color: #dff0d8; border-color: #4CAF50; opacity: 0.6; transform: scale(0.9); pointer-events: none;
+        }
+        .target-item.found::after {
+            content: "✔"; position: absolute; font-size: 3rem; color: green; top: 10px; text-shadow: 2px 2px 0 #fff;
+        }
+        
+        .target-item.hinting {
+            border-color: #FFD700; background-color: #fffbe6;
+            box-shadow: 0 0 15px #FFD700; animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 215, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+        }
+
+        #game-ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: none; z-index: 900;
+        }
+
+        #score-board {
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(255, 255, 255, 0.8); padding: 8px 15px;
+            border-radius: 20px; font-weight: bold; color: blue; font-size: 1.2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); pointer-events: auto;
+        }
+
+        #settings-container {
+            position: absolute; top: 15px; right: 15px;
+            display: flex; flex-direction: column; align-items: flex-end;
+            pointer-events: auto;
+        }
+
+        #gear-btn {
+            width: 45px; height: 45px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9); border: 2px solid #ccc;
+            font-size: 1.5rem; cursor: pointer; display: flex;
+            justify-content: center; align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, background 0.2s;
+        }
+        #gear-btn:hover { background: #fff; transform: rotate(90deg) scale(1.1); }
+
+        #settings-dropdown {
+            margin-top: 10px; background: rgba(255, 255, 255, 0.95);
+            padding: 15px; border-radius: 15px; width: 220px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 12px;
+            opacity: 0; transform: translateY(-20px) scale(0.95);
+            pointer-events: none; transform-origin: top right;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #settings-dropdown.active {
+            opacity: 1; transform: translateY(0) scale(1); pointer-events: auto;
+        }
+
+        .toggle-switch {
+            display: flex; align-items: center; gap: 8px; font-size: 1rem; cursor: pointer;
+            padding: 6px 15px; border-radius: 20px; background: #eee; border: 1px solid #ccc;
+        }
+        .toggle-switch input { margin: 0; cursor: pointer; transform: scale(1.2); }
+        .toggle-switch:hover { background: #e0e0e0; }
+
+        #result-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none;
+            justify-content: center; align-items: center; z-index: 999;
+        }
+        .modal-content {
+            background: white; padding: 40px; border-radius: 20px;
+            text-align: center; min-width: 320px; border: 5px solid #FFD700;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+        
+        #print-header { display: none; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 0mm; }
+            body {
+                background: white !important; height: auto !important;
+                overflow: visible !important; padding: 12mm 15mm !important; 
+            }
+            #sidebar, #game-ui, #result-modal, #empty-msg { display: none !important; }
+            #print-header {
+                display: block !important; width: 100%; margin-bottom: 10px;
+                color: #000; font-family: '微軟正黑體', sans-serif;
+            }
+            .print-title {
+                text-align: center; font-size: 24pt; font-weight: bold;
+                margin-bottom: 8px; letter-spacing: 2px;
+            }
+            .print-info { text-align: right; font-size: 14pt; font-weight: bold; }
+            #main-container { display: block !important; height: auto !important; overflow: visible !important; }
+            #canvas-wrapper { background: white !important; padding: 0 !important; display: block !important; text-align: center; }
+            canvas {
+                box-shadow: none !important; max-width: 100% !important;
+                max-height: 12.5cm !important; width: auto !important; height: auto !important;
+                margin: 0 auto 10px auto !important; filter: none !important; 
+            }
+            #game-bottom-bar {
+                position: static !important; display: flex !important; flex-wrap: wrap !important;
+                height: auto !important; background: white !important; border-top: 2px solid #000 !important;
+                padding: 15px 0 0 0 !important; justify-content: center !important; gap: 20px !important;
+            }
+            .target-item {
+                border: 2px solid #666 !important; box-shadow: none !important;
+                background: white !important; color: black !important; page-break-inside: avoid;
+                opacity: 1 !important; transform: none !important;
+            }
+            .target-item img { border-color: #666 !important; }
+            .target-item.found::after { display: none !important; }
+            .target-item.hinting { animation: none !important; border-color: #666 !important; box-shadow: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="print-header">
+        <div class="print-title">國小學習單-找找看</div>
+        <div class="print-info">班級:_______  座號:_______  姓名:______________  日期:_____/_____/_____</div>
+    </div>
+
+    <div id="game-ui">
+        <div id="score-board"></div>
+        
+        <div id="settings-container" onmouseenter="resetMenuTimer()" onmouseleave="startMenuTimer()">
+            <div id="gear-btn" onclick="toggleMenu()" title="打開遊戲設定">⚙️</div>
+            
+            <div id="settings-dropdown">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-visual" checked> 👀 視覺提示
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-voice" checked> 🔊 語音報讀
+                </label>
+                
+                <hr style="width:100%; border:0; border-top:1px solid #ddd; margin:5px 0;">
+                
+                <button class="success" onclick="printWorksheet()">
+                    🖨️ 列印學習單 (A4 橫)
+                </button>
+
+                <button style="font-size:0.9rem; padding:8px 10px; margin-top:5px; background:#fff; border:2px solid #ccc; width:100%;" onclick="backToSetup()">
+                    🏠回到首頁 (Esc)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <div id="canvas-wrapper">
+            <h2 id="empty-msg">請由右側載入圖片 ⇨</h2>
+            <canvas id="game-canvas"></canvas>
+        </div>
+
+        <div id="sidebar">
+            <div class="sidebar-header">
+                <h2 style="margin:0;">🔎找找看V1.0-特教適用</h2>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="control-group">
+                    <label>1. 載入情境圖</label>
+                    <p style="font-size:0.8rem; color:#666; margin:0 0 5px 0;">(支援jpg、jpeg、gif、png、webp)</p>
+                    <input type="file" id="upload-image" accept="image/*" style="width:100%">
+                </div>
+
+                <div id="setup-controls" style="display:none;">
+                    <div class="control-group" style="background:#fffbe6; border:1px dashed #999;">
+                        <label>2. 建立範圍設定</label>
+                        
+                        <div class="shape-selector">
+                            <div class="shape-option active" id="shape-ellipse" onclick="setShape('ellipse')">🟢 橢圓</div>
+                            <div class="shape-option" id="shape-rect" onclick="setShape('rect')">🟩 方形</div>
+                        </div>
+
+                        <div id="drag-settings">
+                            <p style="font-size:0.85rem; color:#d00; margin:5px 0 0 0; font-weight:bold;">
+                                👉 請在圖片上按住拖曳並拉出範圍！
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label style="margin:0;">3. 已建立物品 (<span id="item-count">0</span>)</label>
+                            <button onclick="clearAllItems()" style="font-size:0.8rem; padding:2px 5px; color:#d00;">🗑️ 清空</button>
+                        </div>
+                        <div id="item-list-container" class="item-list"></div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>4. 遊戲設定</label>
+                        <select id="question-count" style="width:100%; padding:8px; margin-bottom:10px; font-size:1rem;">
+                            <option value="1">1題</option>
+                            <option value="2">2題</option>
+                            <option value="3" selected>3題</option>
+                            <option value="4">4題</option>
+                            <option value="5">5題</option>
+                            <option value="6">6題</option>
+                            <option value="7">7題</option>
+                            <option value="8">8題</option>
+                        </select>
+                        <button class="primary" onclick="startGame()">🎮開始遊戲</button>
+                        <button class="danger" onclick="resetSetup()">🔄 全部重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-bottom-bar"></div>
+
+    <div id="result-modal">
+        <div class="modal-content">
+            <h1 style="font-size: 5rem; margin:0;">🎉</h1>
+            <h2>恭喜過關！</h2>
+            <div style="margin-top:20px;">
+                <button class="primary" onclick="replay()">🔄再玩一次</button>
+                <button onclick="backToSetup()">🏠回到首頁</button>
+            </div>
+        </div>
+    </div>
+
+    <script>       
+        const correctSound = new Audio('mp3/correct.mp3');
+        const applauseSound = new Audio('mp3/applause.mp3');
+              
+        applauseSound.volume = 0.4;
+        
+        correctSound.load(); 
+        applauseSound.load();
+        
+        function playSound(audioObj) {
+            if (!audioObj) return;
+            audioObj.currentTime = 0;
+            audioObj.play().catch(e => console.log("音效播放被阻擋", e));
+        }
+        
+        let voices = [];
+        if (window.speechSynthesis) {
+            window.speechSynthesis.onvoiceschanged = () => voices = window.speechSynthesis.getVoices();
+        }
+        
+        function speak(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW'; 
+            utterance.rate = 0.9;            
+            utterance.volume = 1.0; 
+            
+            if (voices.length === 0) voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.name.includes("Google") && v.lang.includes("zh-TW")) ||
+                                   voices.find(v => v.lang.includes("zh-TW"));
+            if (preferredVoice) utterance.voice = preferredVoice;
+            window.speechSynthesis.speak(utterance);
+        }
+       
+        function compressAndLoadImage(file, maxWidth, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width, height = img.height;
+                    if (width > maxWidth || height > maxWidth) {
+                        const scale = Math.min(maxWidth / width, maxWidth / height);
+                        width *= scale; height *= scale;
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = width; tempCanvas.height = height;
+                        tempCanvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                        callback(tempCanvas.toDataURL('image/jpeg', 0.9));
+                    } else callback(event.target.result);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+        
+        function enterFullScreen() {
+            let elem = document.documentElement;
+            if (elem.requestFullscreen) elem.requestFullscreen().catch(()=>{});
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        }
+        function exitFullScreen() {
+            if (document.exitFullscreen && document.fullscreenElement) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+        
+        let uiTimer = null;
+        const dropdown = document.getElementById('settings-dropdown');
+
+        function toggleMenu() {
+            dropdown.classList.toggle('active');
+            if (dropdown.classList.contains('active')) {
+                startMenuTimer();
+            } else {
+                clearTimeout(uiTimer);
+            }
+        }
+
+        function startMenuTimer() {
+            clearTimeout(uiTimer);
+            uiTimer = setTimeout(() => {
+                dropdown.classList.remove('active');
+            }, 3500);
+        }
+
+        function resetMenuTimer() {
+            if (dropdown.classList.contains('active')) {
+                clearTimeout(uiTimer);
+            }
+        }
+        
+        let mainImage = new Image();
+        let canvas = document.getElementById('game-canvas');
+        let ctx = canvas.getContext('2d');
+        let canvasWrapper = document.getElementById('canvas-wrapper');
+        
+        let allItems = []; 
+        let currentLevelItems = [];
+        let foundCount = 0;
+        let isSetupMode = true;
+        let hintingItem = null; let hintTimer = null;   
+
+        let currentShape = 'ellipse'; 
+        let mouseX = 0, mouseY = 0, isMouseOver = false;
+        let isDragging = false;
+        let dragStartX = 0, dragStartY = 0, dragEndX = 0, dragEndY = 0;
+
+        window.addEventListener('resize', () => { if(mainImage.src) fitCanvasToScreen(); });
+        document.addEventListener('keydown', (e) => { if (e.key === "Escape" && !isSetupMode) backToSetup(); });
+
+        document.getElementById('upload-image').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            compressAndLoadImage(file, 1000, function(resizedSrc) {
+                mainImage = new Image();
+                mainImage.onload = function() {
+                    allItems = []; updateItemList();
+                    document.getElementById('empty-msg').style.display = 'none';
+                    document.getElementById('setup-controls').style.display = 'block';
+                    fitCanvasToScreen();
+                }
+                mainImage.src = resizedSrc;
+            });
+        });
+
+        function setShape(shape) {
+            currentShape = shape;
+            document.getElementById('shape-ellipse').classList.remove('active');
+            document.getElementById('shape-rect').classList.remove('active');
+            document.getElementById(`shape-${shape}`).classList.add('active');
+            drawCanvas(); 
+        }
+
+        function fitCanvasToScreen() {
+            if (!mainImage.width) return;
+            let containerW = canvasWrapper.clientWidth - 20;
+            let containerH = canvasWrapper.clientHeight - 20;
+            let scale = Math.min(containerW / mainImage.width, containerH / mainImage.height);
+            let displayW = mainImage.width * scale;
+            let displayH = mainImage.height * scale;
+            canvas.style.width = `${displayW}px`; canvas.style.height = `${displayH}px`;
+            canvas.width = mainImage.width; canvas.height = mainImage.height;
+            drawCanvas();
+        }
+      
+        function drawCanvas(isForPrint = false) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (mainImage.src) ctx.drawImage(mainImage, 0, 0);
+            
+            if (isForPrint) return; 
+
+            if (!isSetupMode) {
+                currentLevelItems.forEach(item => {
+                    if (item.found) {
+                        ctx.beginPath();
+                        if(item.type === 'ellipse') {
+                            ctx.ellipse(item.x, item.y, item.radiusX, item.radiusY, 0, 0, Math.PI * 2);
+                        } else {
+                            ctx.rect(item.x, item.y, item.width, item.height);
+                        }
+                        ctx.lineWidth = 5; ctx.strokeStyle = '#4CAF50'; ctx.stroke();
+                        ctx.fillStyle = 'rgba(76, 175, 80, 0.2)'; ctx.fill();
+                    }
+                });
+            }
+
+            if (!isSetupMode && hintingItem && !hintingItem.found) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.save();
+                ctx.beginPath();
+                if(hintingItem.type === 'ellipse') {
+                    ctx.ellipse(hintingItem.x, hintingItem.y, hintingItem.radiusX, hintingItem.radiusY, 0, 0, Math.PI * 2);
+                } else {
+                    ctx.rect(hintingItem.x, hintingItem.y, hintingItem.width, hintingItem.height);
+                }
+                ctx.clip(); 
+                ctx.drawImage(mainImage, 0, 0); 
+                ctx.restore();
+
+                let time = new Date().getTime();
+                let alpha = 0.5 + 0.5 * Math.sin(time / 200); 
+                
+                ctx.beginPath();
+                if(hintingItem.type === 'ellipse') {
+                    ctx.ellipse(hintingItem.x, hintingItem.y, hintingItem.radiusX, hintingItem.radiusY, 0, 0, Math.PI * 2);
+                } else {
+                    ctx.rect(hintingItem.x, hintingItem.y, hintingItem.width, hintingItem.height);
+                }
+                ctx.lineWidth = 6; ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`; ctx.stroke();
+                
+                requestAnimationFrame(() => { if(hintingItem) drawCanvas(); });
+            }
+
+            if (isSetupMode) {
+                allItems.forEach((item, index) => {
+                    ctx.beginPath();
+                    if(item.type === 'ellipse') {
+                        ctx.ellipse(item.x, item.y, item.radiusX, item.radiusY, 0, 0, Math.PI * 2);
+                        ctx.lineWidth = Math.max(3, Math.min(item.radiusX, item.radiusY) * 0.1);
+                    } else {
+                        ctx.rect(item.x, item.y, item.width, item.height);
+                        ctx.lineWidth = Math.max(3, Math.min(item.width, item.height) * 0.05);
+                    }
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                    ctx.stroke();
+                    
+                    let labelX = item.type === 'ellipse' ? item.x + item.radiusX : item.x + item.width;
+                    let labelY = item.type === 'ellipse' ? item.y - item.radiusY : item.y;
+                    ctx.beginPath(); ctx.arc(labelX, labelY, 15, 0, Math.PI*2);
+                    ctx.fillStyle = 'red'; ctx.fill();
+                    ctx.fillStyle = 'white'; ctx.font = "bold 16px Arial";
+                    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillText(index + 1, labelX, labelY);
+                });
+
+                if (mainImage.src && isDragging) {
+                    ctx.beginPath();
+                    let rx = Math.min(dragStartX, dragEndX);
+                    let ry = Math.min(dragStartY, dragEndY);
+                    let rw = Math.abs(dragEndX - dragStartX);
+                    let rh = Math.abs(dragEndY - dragStartY);
+
+                    if (currentShape === 'ellipse') {
+                        let cx = rx + rw / 2; let cy = ry + rh / 2;
+                        let radiusX = rw / 2; let radiusY = rh / 2;
+                        ctx.ellipse(cx, cy, radiusX, radiusY, 0, 0, Math.PI * 2);
+                        ctx.lineWidth = 2; ctx.strokeStyle = 'blue'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+                        ctx.fillStyle = 'blue'; ctx.fillRect(cx-2, cy-2, 4, 4);
+                    } else if (currentShape === 'rect') {
+                        ctx.rect(rx, ry, rw, rh);
+                        ctx.lineWidth = 2; ctx.strokeStyle = 'blue'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+                    }
+                }
+            }
+        }
+       
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        
+        canvas.addEventListener('touchstart', (e) => {
+            if(e.target == canvas) { e.preventDefault(); handleMouseDown(e.touches[0]); }
+        }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => {
+            if(e.target == canvas && isDragging) { e.preventDefault(); handleMouseMove(e.touches[0]); }
+        }, {passive: false});
+        window.addEventListener('touchend', (e) => {
+            if(isDragging) handleMouseUp();
+        });
+
+        canvas.addEventListener('mouseleave', () => { 
+            isMouseOver = false; 
+            if(!hintingItem && !isDragging) drawCanvas(); 
+        });
+
+        function handleMouseDown(evt) {
+            if (!mainImage.src) return;
+            const pos = getMousePos(evt);
+
+            if (isSetupMode) {
+                isDragging = true;
+                dragStartX = pos.x; dragStartY = pos.y;
+                dragEndX = pos.x; dragEndY = pos.y;
+            } else {
+                checkAnswer(pos.x, pos.y);
+            }
+        }
+
+        function handleMouseMove(evt) {
+            if (!isSetupMode || !mainImage.src) return;
+            const pos = getMousePos(evt);
+            
+            if (isDragging) {
+                dragEndX = pos.x; dragEndY = pos.y;
+            } else {
+                mouseX = pos.x; mouseY = pos.y;
+                isMouseOver = true;
+            }
+            if(!hintingItem) drawCanvas();
+        }
+
+        function handleMouseUp() {
+            if (isSetupMode && isDragging) {
+                isDragging = false;
+                let rx = Math.min(dragStartX, dragEndX);
+                let ry = Math.min(dragStartY, dragEndY);
+                let rw = Math.abs(dragEndX - dragStartX);
+                let rh = Math.abs(dragEndY - dragStartY);
+
+                if (rw > 10 && rh > 10) {
+                    if (currentShape === 'ellipse') {
+                        let cx = rx + rw / 2; let cy = ry + rh / 2;
+                        let radiusX = rw / 2; let radiusY = rh / 2;
+                        setTimeout(() => {
+                            const name = prompt("請輸入名稱:");
+                            if (name) addItem({type: 'ellipse', x: cx, y: cy, radiusX: radiusX, radiusY: radiusY, name: name});
+                        }, 10);
+                    } else if (currentShape === 'rect') {
+                        setTimeout(() => {
+                            const name = prompt("請輸入名稱:");
+                            if (name) addItem({type: 'rect', x: rx, y: ry, width: rw, height: rh, name: name});
+                        }, 10);
+                    }
+                } else {
+                    drawCanvas(); 
+                }
+            }
+        }
+        
+        function addItem(data) {
+            let tempCanvas = document.createElement('canvas');
+            let tCtx = tempCanvas.getContext('2d');
+            
+            if (data.type === 'ellipse') {
+                tempCanvas.width = data.radiusX * 2; 
+                tempCanvas.height = data.radiusY * 2;
+                tCtx.beginPath(); 
+                tCtx.ellipse(data.radiusX, data.radiusY, data.radiusX, data.radiusY, 0, 0, Math.PI * 2); 
+                tCtx.clip();
+                tCtx.drawImage(mainImage, data.x - data.radiusX, data.y - data.radiusY, data.radiusX * 2, data.radiusY * 2, 0, 0, data.radiusX * 2, data.radiusY * 2);
+            } else {
+                tempCanvas.width = data.width; 
+                tempCanvas.height = data.height;
+                tCtx.drawImage(mainImage, data.x, data.y, data.width, data.height, 0, 0, data.width, data.height);
+            }
+            
+            data.imageSrc = tempCanvas.toDataURL();
+            data.id = Date.now();
+            allItems.push(data);
+            
+            updateItemList();
+            drawCanvas();
+        }
+
+        function updateItemList() {
+            const container = document.getElementById('item-list-container');
+            document.getElementById('item-count').innerText = allItems.length;
+            container.innerHTML = '';
+            if (allItems.length === 0) {
+                container.innerHTML = '<div style="color:#666; text-align:center;">尚未建立任何物品</div>'; return;
+            }
+            allItems.forEach((item, index) => {
+                let icon = item.type === 'ellipse' ? '🟢' : '🟩';
+                let div = document.createElement('div');
+                div.className = 'item-row';
+                div.innerHTML = `<span><b>${index+1}.</b> ${icon} ${item.name}</span><button class="danger-small" onclick="deleteItem(${index})">❌</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        function deleteItem(index) { allItems.splice(index, 1); updateItemList(); drawCanvas(); }
+        function clearAllItems() { if(confirm("確定清除所有標記？")) { allItems = []; updateItemList(); drawCanvas(); } }
+
+        function startGame() {
+            if (allItems.length === 0) { alert("請先建立題目！"); return; }
+            enterFullScreen();
+            
+            document.getElementById('sidebar').classList.add('collapsed');
+            document.getElementById('game-bottom-bar').classList.add('active');
+            document.getElementById('game-ui').style.display = 'block';
+            dropdown.classList.remove('active'); 
+            isSetupMode = false;
+            
+            let qCount = parseInt(document.getElementById('question-count').value);
+            if (qCount > allItems.length) qCount = allItems.length;
+            
+            let shuffled = [...allItems].sort(() => 0.5 - Math.random());
+            currentLevelItems = shuffled.slice(0, qCount);
+            foundCount = 0;
+            currentLevelItems.forEach(item => item.found = false);
+            updateScore();
+            renderBottomBar();
+            
+            setTimeout(() => { fitCanvasToScreen(); drawCanvas(); }, 350);
+        }
+
+        function renderBottomBar() {
+            const bar = document.getElementById('game-bottom-bar');
+            bar.innerHTML = '';
+            currentLevelItems.forEach(item => {
+                let div = document.createElement('div');
+                div.className = 'target-item';
+                div.id = `target-${item.id}`;
+                
+                let borderRadius = item.type === 'ellipse' ? '50%' : '8px';
+                
+                div.innerHTML = `<img src="${item.imageSrc}" style="border-radius: ${borderRadius};"><span>${item.name}</span>`;
+                div.onclick = () => showHint(item);
+                bar.appendChild(div);
+            });
+        }
+
+        function showHint(item) {
+            if (item.found) return; 
+            
+            const isVoiceOn = document.getElementById('toggle-voice').checked;
+            if (isVoiceOn) speak(item.name);
+
+            const isVisualOn = document.getElementById('toggle-visual').checked;
+            if (!isVisualOn) return; 
+
+            if (hintTimer) clearTimeout(hintTimer);
+            hintingItem = item;
+            
+            document.querySelectorAll('.target-item').forEach(el => el.classList.remove('hinting'));
+            document.getElementById(`target-${item.id}`).classList.add('hinting');
+            
+            drawCanvas(); 
+            hintTimer = setTimeout(() => { stopHint(); }, 3000);
+        }
+
+        function stopHint() {
+            hintingItem = null;
+            document.querySelectorAll('.target-item').forEach(el => el.classList.remove('hinting'));
+            drawCanvas(); 
+        }
+
+        // --- 答案判定 ---
+        function checkAnswer(clickX, clickY) {
+            let bestMatch = null;
+            let minDistance = Infinity;
+
+            currentLevelItems.forEach(item => {
+                if (item.found) return; 
+                
+                let isHit = false;
+                let distToCenter = 0;
+
+                if (item.type === 'ellipse') {
+                    let normalizedDist = ((clickX - item.x)**2) / (item.radiusX**2) + ((clickY - item.y)**2) / (item.radiusY**2);
+                    if (normalizedDist <= 1) { 
+                        isHit = true; 
+                        distToCenter = Math.sqrt((clickX - item.x)**2 + (clickY - item.y)**2);
+                    }
+                } else {
+                    if (clickX >= item.x && clickX <= item.x + item.width && 
+                        clickY >= item.y && clickY <= item.y + item.height) {
+                        isHit = true;
+                        let centerX = item.x + item.width / 2; 
+                        let centerY = item.y + item.height / 2;
+                        distToCenter = Math.sqrt((clickX - centerX)**2 + (clickY - centerY)**2);
+                    }
+                }
+
+                if (isHit && distToCenter < minDistance) {
+                    minDistance = distToCenter;
+                    bestMatch = item;
+                }
+            });
+
+            if (bestMatch) {
+                let item = bestMatch; 
+                item.found = true;
+                foundCount++;
+                
+                if(hintingItem === item) stopHint();
+                drawCanvas();
+                playSound(correctSound);
+                
+                let targetDiv = document.getElementById(`target-${item.id}`);
+                if(targetDiv) targetDiv.classList.add('found');
+                updateScore();
+               
+                if (foundCount === currentLevelItems.length) {
+                    setTimeout(() => {                        
+                        playSound(applauseSound);
+                        speak("好棒！你表現不錯唷！！"); 
+                        
+                        document.getElementById('result-modal').style.display = 'flex';
+                    }, 500);
+                }
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score-board').innerText = `已找到: ${foundCount} / ${currentLevelItems.length}`;
+        }
+        
+        function printWorksheet() {
+            dropdown.classList.remove('active');
+            clearTimeout(uiTimer);
+            if(hintingItem) stopHint();
+            
+            drawCanvas(true); 
+            
+            setTimeout(() => {
+                window.print();
+                drawCanvas(); 
+            }, 100); 
+        }
+
+        function backToSetup() {
+            exitFullScreen();
+            stopHint(); 
+            isSetupMode = true;
+            document.getElementById('result-modal').style.display = 'none';
+            document.getElementById('game-bottom-bar').classList.remove('active');
+            document.getElementById('game-ui').style.display = 'none'; 
+            document.getElementById('sidebar').classList.remove('collapsed');
+            setTimeout(() => { fitCanvasToScreen(); drawCanvas(); }, 350);
+        }
+
+        function resetSetup() { 
+            if(confirm("確定重置所有設定嗎？")) location.reload(); 
+        }
+        function replay() { 
+            document.getElementById('result-modal').style.display = 'none'; 
+            startGame(); 
+        }
+    </script>
+</body>
+</html>
