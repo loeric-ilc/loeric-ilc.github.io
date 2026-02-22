@@ -128,7 +128,7 @@
 
         header {
             text-align: center;
-            padding: 70px 20px 40px;
+            padding: 10px ;
             width: 100%;
             background: linear-gradient(120deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
@@ -225,10 +225,13 @@
             background: var(--primary-color);
         }
 
+        /* 遊戲卡片圖示顏色配置 */
         .card:nth-child(1) .card-icon { background: #e3f2fd; color: #2196f3; }
         .card:nth-child(2) .card-icon { background: #fff3e0; color: #ff9800; }
         .card:nth-child(3) .card-icon { background: #fce4ec; color: #e91e63; }
         .card:nth-child(4) .card-icon { background: #e8f5e9; color: #4caf50; }
+        /* 新增第 5 張卡片的顏色 */
+        .card:nth-child(5) .card-icon { background: #f3e5f5; color: #9c27b0; }
 
         footer {
             margin-top: auto;
@@ -253,13 +256,13 @@
                 <a href="2025web/PNG轉SVG.html">PNG/PNG轉SVG</a>                
                 <a href="2025web/其他工具.html">PNG去背工具</a>
                 <a href="2025web/繳費狀態分析器.html">繳費狀態分析器</a>
-            </div>           
+            </div>            
 
         </div>
     </div>
 
     <header>
-        <h1>🎮 2025 互動遊戲入口網</h1>
+        <h1>🎮 2026 互動遊戲入口網</h1>
         <p>歡迎來到數位學習遊樂場，請選擇下方的活動開始體驗！</p>
     </header>
 
@@ -304,7 +307,18 @@
             </div>
         </div>
 
-
+        <div class="card">
+            <div class="card-icon">
+                🔗
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">連連看 (國小特教)</h3>
+                    <p class="card-desc">簡單有趣的連連看遊戲，訓練手眼協調與關聯性認知。</p>
+                </div>
+                <a href="2025web/連連看-國小特教/連連看.html" class="btn">開始連線</a>
+            </div>
+        </div>
         <!-- <div class="card"> -->
             <!-- <div class="card-icon"> -->
                 <!-- ✨ -->
@@ -317,11 +331,20 @@
                 <!-- <a href="2025web/✨ coin count - 2col✨ .html" class="btn">進入挑戰</a> -->
             <!-- </div> -->
         <!-- </div> -->
-    </div>
+        <div class="card">
+            <div class="card-icon">
+                🔍
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">找找看 (特教版)</h3>
+                    <p class="card-desc">視覺搜尋遊戲，幫助提升觀察力與專注力。</p>
+                </div>
+                <a href="2025web/找找看V1.0-特教適用/找找看V1.0-特教適用.html" class="btn">開始尋找</a>
+            </div>
+        </div>
 
-    <footer>
-        &copy; 2025 Interactive Learning Portal. Created for Educational Purpose.
-    </footer>
 
+        </div>
 </body>
 </html>
