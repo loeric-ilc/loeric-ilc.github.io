@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>400單字 智慧複習系統 (完整管理版)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Tooltip style for hover */
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .group:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* --- 列印專用樣式 --- */
+        .a4-landscape {
+            width: 297mm;
+            height: 210mm;
+            padding: 10mm;
+            margin: 0 auto 20mm auto;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @media print {
+            @page { 
+                size: A4 landscape; 
+                margin: 10mm; 
+            }
+            body { 
+                background-color: white !important; 
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            .a4-landscape {
+                width: 100% !important;
+                height: 190mm !important; /* 210mm - 20mm margins */
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                page-break-after: always;
+            }
+            /* 修正表格列印高度，強制撐滿 */
+            .print-table { height: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 400 Words Data Initialization (Sorted by ID, 10 per line) ---
+        const rawData = [
+            [1,"afraid","害怕的"], [2,"afternoon","下午"], [3,"agree","同意"], [4,"airplane","飛機"], [5,"all","全部"], [6,"almost","幾乎"], [7,"always","總是"], [8,"angry","生氣的"], [9,"animal","動物"], [10,"answer","答案、回答"],
+            [11,"ant","螞蟻"], [12,"arm","手臂"], [13,"ask","問"], [14,"baby","嬰兒"], [15,"bag","袋子"], [16,"bakery","麵包店"], [17,"banana","香蕉"], [18,"bank","銀行"], [19,"baseball","棒球"], [20,"basketball","籃球"],
+            [21,"bathroom","浴室"], [22,"beach","海灘"], [23,"bear","熊"], [24,"beautiful","美麗的"], [25,"bedroom","臥室"], [26,"beef","牛肉"], [27,"believe","相信"], [28,"belt","腰帶、帶子"], [29,"birthday","生日"], [30,"bite","咬、啃"],
+            [31,"black","黑色"], [32,"blackboard","黑板"], [33,"blind","瞎的、盲的"], [34,"blue","藍色"], [35,"boat","小船"], [36,"bookstore","書店"], [37,"boss","老闆"], [38,"bottle","瓶子"], [39,"bowl","碗"], [40,"breakfast","早餐"],
+            [41,"bridge","橋樑"], [42,"brother","兄弟"], [43,"brown","棕色、咖啡色"], [44,"brush","刷、刷子"], [45,"bus","公車"], [46,"businessman","商人"], [47,"busy","忙、忙碌"], [48,"butter","奶油"], [49,"buy","買"], [50,"cake","蛋糕"],
+            [51,"camera","相機"], [52,"candy","糖果"], [53,"card","卡片"], [54,"careful","小心的、仔細的"], [55,"cat","貓"], [56,"cell phone","手機"], [57,"chair","椅子"], [58,"chalk","粉筆"], [59,"cheap","便宜的"], [60,"cheat","欺騙、作弊"],
+            [61,"cheese","乳酪、起士"], [62,"chicken","雞、雞肉"], [63,"chocolate","巧克力"], [64,"chopstick","筷子"], [65,"Christmas","聖誕節"], [66,"church","教堂"], [67,"circle","圓形、圈起來"], [68,"city","城市"], [69,"classmate","同學"], [70,"classroom","教室"],
+            [71,"clean","清潔、乾淨的"], [72,"climb","爬、攀爬"], [73,"clothes","衣服"], [74,"cloudy","多雲的、陰天的"], [75,"coat","大衣"], [76,"coffee","咖啡"], [77,"cold","冷的"], [78,"collect","收集"], [79,"color","顏色、著色"], [80,"come","來"],
+            [81,"computer","電腦"], [82,"convenient","便利的"], [83,"cook","煮、烹調、廚師"], [84,"cookie","餅乾"], [85,"cool","涼爽的、酷的"], [86,"copy","影印、拷貝"], [87,"couch","長沙發、睡椅"], [88,"count","數數、計算"], [89,"country","鄉村、國家"], [90,"crazy","瘋狂的"],
+            [91,"cry","哭泣"], [92,"cup","杯子"], [93,"cute","可愛的"], [94,"dance","跳舞"], [95,"dangerous","危險的"], [96,"dark","黑暗的"], [97,"date","日期"], [98,"daughter","女兒"], [99,"decide","決定"], [100,"delicious","美味的"],
+            [101,"department store","百貨公司"], [102,"desk","書桌"], [103,"dictionary","字典"], [104,"different","不同的"], [105,"dinner","晚餐"], [106,"dirty","骯髒的"], [107,"dishes","碗盤(複數)"], [108,"doctor","醫生"], [109,"dodgeball","躲避球"], [110,"doll","娃娃、玩偶"],
+            [111,"dollar","(美)元"], [112,"door","門"], [113,"Double Tenth Day","雙十節"], [114,"dozen","一打"], [115,"dream","夢想、作夢"], [116,"dress","洋裝"], [117,"drink","喝"], [118,"driver","司機"], [119,"dry","乾燥的、乾的"], [120,"ear","耳朵"],
+            [121,"eat","吃"], [122,"elephant","大象"], [123,"eleven","十一"], [124,"elf","小精靈"], [125,"e-mail","電子郵件"], [126,"English","英文、英語"], [127,"eraser","橡皮擦、擦子"], [128,"evening","傍晚、晚上"], [129,"excellent","傑出的、優秀的"], [130,"excited","刺激的、興奮的"],
+            [131,"expensive","昂貴的"], [132,"eye","眼睛"], [133,"face","臉"], [134,"factory","工廠"], [135,"family","家庭、家人"], [136,"fan","電風扇、扇子"], [137,"farmer","農夫"], [138,"fast","快的"], [139,"Father's Day","父親節"], [140,"favorite","最愛的"],
+            [141,"fall","秋天"], [142,"feel","感覺"], [143,"finally","最後、終於"], [144,"finger","手指"], [145,"fish","魚"], [146,"fisherman","漁夫"], [147,"five","五"], [148,"flower","花"], [149,"food","食物"], [150,"foreigner","外國人"],
+            [151,"fork","叉子"], [152,"four","四"], [153,"Friday","星期五"], [154,"friend","朋友"], [155,"fruit","水果"], [156,"giraffe","長頸鹿"], [157,"go","去"], [158,"goodbye","再見"], [159,"grandma","祖母"], [160,"grandpa","祖父"],
+            [161,"great","美好的、偉大的"], [162,"green","綠色"], [163,"guess","猜"], [164,"garbage","垃圾"], [165,"garden","花園"], [166,"gift","禮物"], [167,"glasses","眼鏡"], [168,"glove","手套"], [169,"goat","山羊"], [170,"grass","草"],
+            [171,"gray","灰色"], [172,"ground","地面"], [173,"hamburger","漢堡"], [174,"hand","手"], [175,"head","頭"], [176,"help","幫助"], [177,"hair","頭髮"], [178,"habit","習慣"], [179,"Halloween","萬聖節"], [180,"healthy","健康的"],
+            [181,"history","歷史"], [182,"holiday","假日、假期"], [183,"honest","誠實的、正直的"], [184,"horse","馬"], [185,"hospital","醫院"], [186,"hot dog","熱狗"], [187,"hotel","旅館"], [188,"hundred","百"], [189,"hurt","受傷、危害"], [190,"hour","小時"],
+            [191,"homework","家庭作業"], [192,"hot","熱的"], [193,"hungry","飢餓的"], [194,"ice cream","冰淇淋"], [195,"important","重要的"], [196,"Internet","網際網路"], [197,"island","島嶼"], [198,"jacket","夾克"], [199,"jeans","牛仔褲"], [200,"jog","慢跑"],
+            [201,"jump","跳躍"], [202,"juice","果汁"], [203,"kick","踢"], [204,"knee","膝蓋"], [205,"knife","刀子"], [206,"kitchen","廚房"], [207,"kite","風箏"], [208,"lake","湖泊"], [209,"late","遲到的"], [210,"leg","腿"],
+            [211,"like","喜歡、像"], [212,"lion","獅子"], [213,"living room","客廳（起居室）"], [214,"lunch","午餐"], [215,"laugh","笑"], [216,"lazy","懶惰的"], [217,"left","左邊、剩下的"], [218,"library","圖書館"], [219,"listen","聽"], [220,"lonely","孤獨的、單獨的"],
+            [221,"lucky","幸運的"], [222,"many","很多"], [223,"marker","麥克筆、白板筆、彩色筆"], [224,"math","數學"], [225,"milk","牛奶"], [226,"Monday","星期一"], [227,"monkey","猴子"], [228,"morning","早上"], [229,"mouse","老鼠、滑鼠"], [230,"mouth","嘴巴"],
+            [231,"music","音樂"], [232,"machine","機器"], [233,"medicine","藥"], [234,"menu","菜單"], [235,"minute","分鐘"], [236,"mistake","錯誤"], [237,"Moon Festival","中秋節"], [238,"Mother's Day","母親節"], [239,"money","錢、金錢"], [240,"mountain","山、山脈"],
+            [241,"movie","電影"], [242,"museum","博物館"], [243,"neck","頸部, 脖子"], [244,"New Year's Day","新年（元旦）"], [245,"noodle","麵條"], [246,"north","北方、北方的、北部的"], [247,"name","名字"], [248,"new","新的"], [249,"night","夜晚"], [250,"notebook","筆記本、筆電"],
+            [251,"nose","鼻子"], [252,"number","號碼"], [253,"nurse","護士"], [254,"office","辦公室"], [255,"old","老的、舊的"], [256,"open","打開"], [257,"orange","柳橙、橘色的"], [258,"page","頁、頁數"], [259,"pants","褲子"], [260,"parents","雙親"],
+            [261,"pet","寵物"], [262,"picnic","郊遊、野餐"], [263,"picture","圖畫、照片"], [264,"playground","操場、遊樂場"], [265,"police station","警察局"], [266,"popcorn","爆玉米花"], [267,"popular","受歡迎的"], [268,"pork","豬肉"], [269,"post office","郵局"], [270,"problem","問題、困難"],
+            [271,"pull","拉"], [272,"push","推"], [273,"park","公園"], [274,"pencil case","鉛筆盒"], [275,"piano","鋼琴"], [276,"pink","粉紅色"], [277,"pizza","比薩"], [278,"play","玩、播放"], [279,"please","請、拜託"], [280,"police officer","警察"],
+            [281,"purple","紫色"], [282,"question","問題"], [283,"queen","皇后"], [284,"quiet","安靜的、安靜"], [285,"quiz","小考、測驗"], [286,"radio","廣播"], [287,"rainbow","彩虹"], [288,"restaurant","餐廳"], [289,"right","右邊、正確的"], [290,"river","河流"],
+            [291,"road","路"], [292,"run","跑"], [293,"rabbit","兔子"], [294,"read","讀"], [295,"red","紅色"], [296,"restroom","廁所"], [297,"rice","飯、米"], [298,"robot","機器人"], [299,"sad","悲傷的"], [300,"sandwich","三明治"],
+            [301,"Saturday","星期六"], [302,"school","學校"], [303,"sea","海、海洋"], [304,"see","看"], [305,"short","矮的、短的"], [306,"sick","生病的"], [307,"sing","唱"], [308,"skirt","裙子"], [309,"sleep","睡覺"], [310,"smell","聞、氣味"],
+            [311,"snack","點心"], [312,"some","一些"], [313,"sorry","難過的、抱歉的"], [314,"Sunday","星期日"], [315,"scooter","輕型摩托車"], [316,"safe","安全的"], [317,"salad","沙拉"], [318,"salty","鹹的"], [319,"same","相同的、一樣的"], [320,"student","學生"],
+            [321,"season","季節"], [322,"shape","形狀"], [323,"share","分享"], [324,"sheep","綿羊"], [325,"ship","大船"], [326,"shirt","襯衫"], [327,"shoe","鞋子"], [328,"shop","商店"], [329,"shopkeeper","店主"], [330,"shoulder","肩膀"],
+            [331,"shy","害羞的"], [332,"slow","慢的"], [333,"smile","微笑"], [334,"smoke","吸煙、煙"], [335,"snake","蛇"], [336,"snowy","下雪的"], [337,"sock","短襪"], [338,"song","歌曲"], [339,"sound","聲響、聽起來"], [340,"south","南方、南方的、南部的"],
+            [341,"speak","說話"], [342,"spoon","湯匙"], [343,"spring","春天、泉水"], [344,"story","故事"], [345,"stranger","陌生人"], [346,"street","街道"], [347,"successful","成功的"], [348,"sugar","糖"], [349,"summer","夏天"], [350,"supermarket","超級市場"],
+            [351,"surprised","驚訝的"], [352,"sweater","毛衣"], [353,"swim","游泳"], [354,"Taiwan","台灣"], [355,"taxi","計程車"], [356,"Teacher's Day","教師節"], [357,"telephone","電話"], [358,"television","電視"], [359,"Thanksgiving","感恩節"], [360,"thirsty","口渴的"],
+            [361,"thousand","千"], [362,"tomorrow","明天"], [363,"traffic","交通"], [364,"train station","火車站"], [365,"truck","卡車、貨車"], [366,"typhoon","颱風"], [367,"ten","十"], [368,"three","三"], [369,"Thursday","星期四"], [370,"tiger","老虎"],
+            [371,"tired","疲倦的"], [372,"today","今天"], [373,"train","火車"], [374,"tree","樹"], [375,"Tuesday","星期二"], [376,"twelve","十二"], [377,"two","二"], [378,"umbrella","雨傘"], [379,"uniform","制服"], [380,"vacation","假期"],
+            [381,"vegetable","蔬菜"], [382,"walk","走路"], [383,"want","想要、需要"], [384,"wash","清洗"], [385,"watch","看、手錶"], [386,"water","水"], [387,"weather","天氣"], [388,"Wednesday","星期三"], [389,"week","星期、週"], [390,"weekend","週末"],
+            [391,"what","什麼"], [392,"white","白色"], [393,"window","窗戶"], [394,"windy","多風的、有風的、風大的"], [395,"winter","冬天"], [396,"write","寫"], [397,"yellow","黃色"], [398,"yesterday","昨天"], [399,"young","年輕"], [400,"zebra","斑馬"]
+        ];
+
+        // Format raw data into objects with new historyOfError flag
+        const INITIAL_WORDS = rawData.map(([id, en, zh]) => ({            
+            id,            
+            en,            
+            zh,            
+            reviewed: 0,            
+            errors: 0,
+            slipped: false // previously wrong but redeemed
+        })).sort((a, b) => a.id - b.id);
+
+        // --- Helper Functions (Defined Outside App to be accessible by components) ---
+
+        const formatDuration = (seconds) => {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}分${s}秒`;
+        };
+
+        const formatDate = (timestamp) => {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-TW', { 
+                year: 'numeric',
+                month: 'numeric', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true
+            });
+        };
+
+        // --- Sub-Components ---
+
+        const MenuScreen = ({ startQuiz, setView, exportJSON, words, history, importData }) => {
+            const fileInputRef = useRef(null);
+
+            return (
+                <div className="max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg mt-10 text-center fade-in">
+                    <h1 className="text-3xl font-bold text-blue-600 mb-2">400單字 拼寫特訓</h1>
+                    <p className="text-gray-500 mb-8">看中文，拼英文</p>
+                    
+                    <div className="space-y-4">
+                        <button onClick={() => startQuiz('random')} className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-lg transition shadow-md flex items-center justify-center gap-2">
+                            <span>🎲</span> 隨機測驗 (優先未出題)
+                        </button>
+                        <button onClick={() => startQuiz('smart')} className="w-full py-4 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold text-lg transition shadow-md flex items-center justify-center gap-2">
+                            <span>🧠</span> 智慧複習 (優先錯誤題)
+                        </button>
+                        <button 
+                            style={{ backgroundColor: '#e7f9e4' }}
+                            onClick={() => setView('summary')} 
+                            className="w-full py-4 hover:bg-green-600 text-green-800 hover:text-white rounded-lg font-semibold text-lg transition shadow-md flex items-center justify-center gap-2"
+                        >
+                            <span>📊</span> 查看報表
+                        </button>
+                        <button 
+                            onClick={() => setView('print')} 
+                            className="w-full py-4 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-semibold text-lg transition shadow-md flex items-center justify-center gap-2"
+                        >
+                            <span>🖨️</span> 列印紙本題本
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+                            <button onClick={exportJSON} className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm">
+                                <span>💾</span> 匯出記錄
+                            </button>
+                            
+                            {/* Import Functionality */}
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                style={{ display: 'none' }} 
+                                onChange={importData} 
+                                accept=".json"
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current.click()} 
+                                className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" x2="12" y1="15" y2="3"/>
+                                </svg>
+                                匯入記錄
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 text-sm text-gray-400">
+                        字庫: {words.length} | 歷程: {history.length} 筆
+                    </div>
+                </div>
+            );
+        };
+
+        const QuizScreen = ({ quizData, currentQIndex, quizScore, quizFeedback, userAnswer, setUserAnswer, handleSubmit, setView, quizStartTime }) => {
+            const currentWord = quizData[currentQIndex];
+            const progress = ((currentQIndex) / quizData.length) * 100;
+            const inputRef = useRef(null);
+            const [duration, setDuration] = useState(0);
+
+            useEffect(() => {
+                if (inputRef.current && !quizFeedback) {
+                    inputRef.current.focus();
+                }
+            }, [currentQIndex, quizFeedback]);
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setDuration(Math.floor((Date.now() - quizStartTime) / 1000));
+                }, 1000);
+                return () => clearInterval(timer);
+            }, [quizStartTime]);
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-gray-50 flex flex-col">
+                    <div className="bg-white p-4 shadow-sm flex justify-between items-center">
+                        <span className="font-bold text-gray-500">Q{currentQIndex + 1}/{quizData.length}</span>
+                        <div className="w-1/2 bg-gray-200 rounded-full h-2.5">
+                            <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <span className="font-bold text-green-600">Score: {quizScore}</span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center p-6 fade-in">
+                        <div className="bg-white rounded-2xl shadow-md p-8 text-center mb-6">
+                            <h2 className="text-4xl font-extrabold text-gray-800 mb-4 leading-tight">{currentWord.zh}</h2>
+                            <p className="text-blue-500 font-bold text-lg bg-blue-50 inline-block px-3 py-1 rounded-full border border-blue-100">
+                                提示: {currentWord.en.charAt(0)}...
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input 
+                                ref={inputRef}
+                                type="text" 
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="請輸入英文單字..."
+                                className={`w-full p-4 text-center text-xl border-2 rounded-xl focus:outline-none transition-colors 
+                                    ${quizFeedback === 'correct' ? 'border-green-500 bg-green-50 text-green-700' : 
+                                      quizFeedback === 'wrong' ? 'border-red-500 bg-red-50 text-red-700' : 
+                                      'border-gray-300 focus:border-blue-500'}`}
+                                disabled={!!quizFeedback}
+                                autoComplete="off"
+                            />
+                            <button 
+                                type="submit"
+                                disabled={!!quizFeedback || !userAnswer.trim()}
+                                className={`w-full p-4 rounded-xl text-white font-bold text-lg shadow-md transition-all
+                                    ${quizFeedback ? 'opacity-50 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 active:scale-95'}
+                                    ${!userAnswer.trim() ? 'bg-gray-300 pointer-events-none' : ''}
+                                `}
+                            >
+                                送出答案
+                            </button>
+                        </form>
+                        
+                        {quizFeedback === 'wrong' && (
+                            <div className="mt-6 p-4 bg-red-100 text-red-700 rounded-xl text-center animate-pulse border border-red-200">
+                                <div className="text-sm text-red-500 mb-1">正確答案</div>
+                                <div className="text-2xl font-black">{currentWord.en}</div>
+                            </div>
+                        )}
+                        {quizFeedback === 'correct' && (
+                            <div className="mt-6 p-4 bg-green-100 text-green-700 rounded-xl text-center border border-green-200">
+                                <div className="text-2xl font-bold">🎉 Correct!</div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="text-center text-gray-400 text-sm mb-2">
+                        經過時間: {formatDuration(duration)}
+                    </div>
+                    <button onClick={() => setView('menu')} className="m-4 mt-0 text-gray-400 text-sm underline text-center">放棄測驗</button>
+                </div>
+            );
+        };
+
+        const ResultScreen = ({ quizScore, totalQuestions, setView }) => (
+            <div className="max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg mt-10 text-center fade-in">
+                <div className="text-6xl mb-4">🏆</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">挑戰完成！</h2>
+                <div className="text-5xl font-extrabold text-blue-600 my-6">
+                    {quizScore} / {totalQuestions}
+                </div>
+                <p className="text-gray-600 mb-8">
+                    測驗結果已儲存至歷程。<br/>
+                    繼續保持！
+                </p>
+                <button onClick={() => setView('menu')} className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">
+                    回主選單
+                </button>
+            </div>
+        );
+
+        // --- New Component: Word Error History Modal ---
+        const WordHistoryModal = ({ word, history, onClose }) => {
+            if (!word) return null;
+
+            const errorLogs = history.flatMap(record => {
+                const detail = record.details.find(d => d.id === word.id);
+                if (detail && !detail.isCorrect) {
+                    return {
+                        timestamp: record.timestamp,
+                        userAnswer: detail.userAnswer
+                    };
+                }
+                return [];
+            }).sort((a, b) => b.timestamp - a.timestamp);
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 fade-in" onClick={onClose}>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800">{word.en}</h3>
+                                <p className="text-sm text-gray-500">{word.zh}</p>
+                            </div>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <h4 className="font-bold text-red-500 mb-3 text-sm uppercase tracking-wide">錯誤歷程紀錄</h4>
+                            {errorLogs.length === 0 ? (
+                                <p className="text-gray-400 text-center py-4">查無詳細錯誤記錄 (可能是舊資料或已刪除)</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {errorLogs.map((log, idx) => (
+                                        <div key={idx} className="flex justify-between items-center border-b border-gray-100 pb-2 last:border-0">
+                                            <div className="text-sm text-gray-600">{formatDate(log.timestamp)}</div>
+                                            <div className="text-right">
+                                                <div className="text-xs text-gray-400">誤答</div>
+                                                <div className="font-mono text-red-600 font-medium">{log.userAnswer || "(未填答)"}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t bg-gray-50 text-center">
+                            <button onClick={onClose} className="text-blue-500 font-bold text-sm hover:underline">關閉</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- New Component: Redemption Modal (將功抵過) ---
+        const RedemptionModal = ({ word, onRedeem, onClose }) => {
+            const [userAnswer, setUserAnswer] = useState('');
+            const [feedback, setFeedback] = useState(null); // 'correct' | 'wrong'
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                if (inputRef.current) inputRef.current.focus();
+            }, []);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (userAnswer.trim().toLowerCase() === word.en.toLowerCase()) {
+                    setFeedback('correct');
+                    setTimeout(() => {
+                        onRedeem(word.id);
+                    }, 1000);
+                } else {
+                    setFeedback('wrong');
+                    // Reset after animation
+                    setTimeout(() => setFeedback(null), 1000); 
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-70 fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center relative overflow-hidden">
+                        {/* Decorative Background */}
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
+                        
+                        <button onClick={onClose} className="absolute top-3 right-3 text-gray-400 hover:text-gray-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+
+                        <h3 className="text-2xl font-bold text-gray-800 mb-1">將功抵過挑戰</h3>
+                        <p className="text-sm text-gray-500 mb-6">答對即可消除一次錯誤記錄！</p>
+
+                        <div className="mb-6">
+                            <h2 className="text-4xl font-extrabold text-blue-600 mb-2">{word.zh}</h2>
+                            <p className="text-sm text-blue-300 font-bold bg-blue-50 inline-block px-2 rounded">
+                                提示: {word.en.charAt(0)}...
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            <input 
+                                ref={inputRef}
+                                type="text" 
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="輸入英文..."
+                                className={`w-full p-3 text-center text-lg border-2 rounded-lg mb-4 focus:outline-none transition-colors
+                                    ${feedback === 'correct' ? 'border-green-500 bg-green-50' : 
+                                      feedback === 'wrong' ? 'border-red-500 bg-red-50 animate-pulse' : 
+                                      'border-gray-300 focus:border-blue-500'}`}
+                                disabled={feedback === 'correct'}
+                            />
+                            <button 
+                                type="submit" 
+                                className={`w-full py-3 rounded-lg font-bold text-white transition shadow-md
+                                    ${feedback === 'correct' ? 'bg-green-500' : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600'}`}
+                                disabled={feedback === 'correct'}
+                            >
+                                {feedback === 'correct' ? '挑戰成功！' : '送出答案'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const SummaryScreen = ({ setView, exportJSON, words, history, openHistoryDetail, activeTab, setActiveTab, deleteHistoryItem, clearAllHistory, startRedemption }) => {
+            const [selectedWordForHistory, setSelectedWordForHistory] = useState(null);
+
+            return (
+                <div className="w-full max-w-6xl mx-auto bg-gray-50 min-h-screen flex flex-col">
+                    <div className="sticky top-0 bg-white z-20 border-b px-6 py-4 shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setView('menu')} className="text-blue-500 font-bold hover:bg-blue-50 px-3 py-1 rounded transition">
+                                    ← 返回
+                                </button>
+                                <h2 className="text-xl font-bold text-gray-800">學習報表</h2>
+                            </div>
+                            <button onClick={exportJSON} className="text-gray-600 hover:text-blue-600 text-sm font-medium border px-3 py-1 rounded hover:bg-gray-50 transition">
+                                匯出記錄
+                            </button>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-full max-w-md">
+                            <button 
+                                onClick={() => setActiveTab('words')}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition ${activeTab === 'words' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                單字總覽
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('history')}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition ${activeTab === 'history' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                測驗歷程
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-4 sm:p-6 overflow-auto flex-1">
+                        <div className="h-2 w-full"></div> 
+                        {activeTab === 'words' ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                                {words.map(w => {
+                                    const correctCount = w.reviewed - w.errors;
+                                    let cardBgStyle = { backgroundColor: '#ffffff' }; 
+                                    
+                                    if (w.errors >= 2) {
+                                        cardBgStyle = { backgroundColor: '#ff9999' }; 
+                                    } else if (w.errors === 1) {
+                                        cardBgStyle = { backgroundColor: '#ffeaea' }; 
+                                    } else if (correctCount >= 2) {
+                                        cardBgStyle = { backgroundColor: '#bedbb9' }; 
+                                    } else if (correctCount === 1) {
+                                        cardBgStyle = { backgroundColor: '#e7f9e4' }; 
+                                    }
+
+                                    const reviewBadgeClass = w.reviewed > 0 
+                                        ? "bg-blue-100 text-blue-700" 
+                                        : "bg-gray-100 text-gray-300";
+                                    
+                                    const cursorClass = w.errors > 0 ? "cursor-pointer hover:ring-2 hover:ring-red-300" : "cursor-default";
+                                    
+                                    const canRedeem = w.errors > 0 && (w.reviewed - w.errors) > 1;
+
+                                    return (
+                                        <div 
+                                            key={w.id} 
+                                            onClick={() => w.errors > 0 && setSelectedWordForHistory(w)}
+                                            className={`group relative border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all ${cursorClass}`}
+                                            style={cardBgStyle}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xs font-mono text-gray-500">#{w.id}</span>
+                                                <div className="flex gap-1 items-center">
+                                                    {/* Redemption Button */}
+                                                    {canRedeem && (
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                startRedemption(w);
+                                                            }}
+                                                            className="w-6 h-6 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center hover:bg-yellow-200 hover:scale-110 transition mr-1"
+                                                            title="將功抵過：答對消除一次錯誤"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                                        </button>
+                                                    )}
+
+                                                    <div 
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${reviewBadgeClass}`} 
+                                                        title="複習次數"
+                                                    >
+                                                        {w.reviewed}
+                                                    </div>
+                                                    <div 
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${w.errors > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-300'}`} 
+                                                        title="錯誤次數"
+                                                    >
+                                                        {w.errors}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-lg font-bold text-gray-800 truncate">{w.en}</div>
+                                            
+                                            <div className="tooltip absolute left-0 bottom-full w-full bg-black text-white text-xs rounded py-1 px-2 mb-2 text-center z-10 pointer-events-none">
+                                                {w.zh}
+                                                <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-black"></div>
+                                            </div>
+                                            
+                                            {w.errors > 0 && (
+                                                <div className="absolute bottom-1 right-2 text-[10px] text-red-500 opacity-0 group-hover:opacity-100 transition-opacity font-bold">
+                                                    點擊查看歷程
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="space-y-3 max-w-3xl mx-auto">
+                                <div className="flex justify-end mb-2">
+                                    <button 
+                                        onClick={clearAllHistory}
+                                        className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded border border-red-200 transition"
+                                    >
+                                        清空所有歷程
+                                    </button>
+                                </div>
+                                {history.length === 0 && <div className="text-center text-gray-400 py-10">尚無測驗記錄</div>}
+                                {history.map((record) => (
+                                    <div 
+                                        key={record.id} 
+                                        className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition flex justify-between items-center group relative"
+                                    >
+                                        <div 
+                                            className="flex-1 cursor-pointer"
+                                            onClick={() => openHistoryDetail(record)}
+                                        >
+                                            <div className="font-bold text-gray-800 mb-1">{formatDate(record.timestamp)}</div>
+                                            <div className="text-sm text-gray-500 flex items-center gap-2">
+                                                <span>⏱️ {formatDuration(record.duration)}</span>
+                                                <span>•</span>
+                                                <span>📝 共 {record.total} 題</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div 
+                                                className="text-right cursor-pointer"
+                                                onClick={() => openHistoryDetail(record)}
+                                            >
+                                                <div className="text-2xl font-black text-blue-600 group-hover:scale-110 transition-transform">
+                                                    {record.score}
+                                                </div>
+                                                <div className="text-xs text-gray-400">正確題數</div>
+                                            </div>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteHistoryItem(record.id);
+                                                }}
+                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+                                                title="刪除此筆記錄"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedWordForHistory && (
+                        <WordHistoryModal 
+                            word={selectedWordForHistory} 
+                            history={history} 
+                            onClose={() => setSelectedWordForHistory(null)} 
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const HistoryDetailScreen = ({ selectedHistory, setView, exportJSON }) => {
+            if (!selectedHistory) return null;
+
+            const { timestamp, duration, score, total, details } = selectedHistory;
+            const wrongCount = total - score;
+
+            return (
+                <div className="w-full max-w-6xl mx-auto bg-gray-50 min-h-screen flex flex-col">
+                    {/* Top Navigation Bar - Matching SummaryScreen style with added quiz info */}
+                    <div className="sticky top-0 bg-white z-20 border-b px-6 py-4 shadow-sm">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setView('summary')} className="text-blue-500 font-bold hover:bg-blue-50 px-3 py-1 rounded transition">
+                                    ← 返回測驗歷程
+                                </button>
+                                <div className="flex flex-col">
+                                    <h2 className="text-xl font-bold text-gray-800">測驗詳情</h2>
+                                    <div className="text-xs text-gray-500 hidden sm:block">
+                                        {formatDate(timestamp)} • 正確: {score} / 錯誤: {wrongCount}
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={exportJSON} className="text-gray-600 hover:text-blue-600 text-sm font-medium border px-3 py-1 rounded hover:bg-gray-50 transition">
+                                匯出記錄
+                            </button>
+                        </div>
+                        {/* Mobile Stats row */}
+                        <div className="sm:hidden mt-2 text-sm text-gray-500 flex justify-between border-t pt-2">
+                             <span>{formatDate(timestamp)}</span>
+                             <span>正確: <span className="text-green-600">{score}</span> / 錯誤: <span className="text-red-600">{wrongCount}</span></span>
+                        </div>
+                    </div>
+
+                    <div className="p-4 sm:p-6 overflow-auto">
+                        <div className="h-12 w-full"></div> 
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                            {details.map((item, idx) => {
+                                const isCorrect = item.isCorrect;
+                                return (
+                                    <div key={idx} className={`group relative bg-white border rounded-lg p-3 transition-all cursor-default ${!isCorrect ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-xs font-mono text-gray-400">#{item.id}</span>
+                                            {!isCorrect && <span className="text-xs font-bold text-red-500 bg-white px-1 rounded border border-red-200">X</span>}
+                                        </div>
+                                        
+                                        <div 
+                                            className={`text-lg truncate ${!isCorrect ? 'font-extrabold text-red-600' : 'font-bold text-gray-800'}`} 
+                                            title={item.en}
+                                        >
+                                            {item.en}
+                                        </div>
+
+                                        <div className="tooltip absolute left-0 bottom-full w-full bg-black text-white text-xs rounded py-2 px-2 mb-2 text-center z-10 pointer-events-none">
+                                            <div className="font-bold">{item.zh}</div>
+                                            {!isCorrect && (
+                                                <div className="mt-1 pt-1 border-t border-gray-600 text-red-200">
+                                                    你的答案: {item.userAnswer || '(未填)'}
+                                                </div>
+                                            )}
+                                            <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-black"></div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- New Component: Print View (A4 Paper Test) ---
+        const PrintScreen = ({ words, setView }) => {
+            const [showAnswers, setShowAnswers] = useState(false);
+            const [printWords, setPrintWords] = useState(words);
+            
+            // Layout config: 5 pairs per row (10 columns total), 10 rows per page = 50 words per page
+            const WORDS_PER_ROW = 5;
+            const ROWS_PER_PAGE = 10;
+            const WORDS_PER_PAGE = WORDS_PER_ROW * ROWS_PER_PAGE;
+
+            // Chunk words into pages
+            const pages = [];
+            for (let i = 0; i < printWords.length; i += WORDS_PER_PAGE) {
+                pages.push(printWords.slice(i, i + WORDS_PER_PAGE));
+            }
+
+            const handleRandom50 = () => {
+                const shuffled = [...words].sort(() => 0.5 - Math.random());
+                setPrintWords(shuffled.slice(0, 50));
+            };
+
+            const handleRandom50Hard = () => {
+                // 優先 1: 錯題打亂
+                const errorWords = words.filter(w => w.errors > 0).sort(() => 0.5 - Math.random());
+                // 優先 2: 其他題目打亂
+                const otherWords = words.filter(w => w.errors === 0).sort(() => 0.5 - Math.random());
+                
+                const combinedPool = [...errorWords, ...otherWords];
+                const selected = [];
+                let shortCount = 0;
+
+                for (const word of combinedPool) {
+                    if (selected.length >= 50) break;
+                    
+                    // 檢查字母數是否小於等於 4
+                    if (word.en.length <= 4) {
+                        if (shortCount < 10) {
+                            selected.push(word);
+                            shortCount++;
+                        }
+                    } else {
+                        selected.push(word);
+                    }
+                }
+
+                // 預防機制：如果因為過濾掉太多短單字導致不足 50 題，就從剩下的補滿
+                if (selected.length < 50) {
+                    for (const word of combinedPool) {
+                        if (selected.length >= 50) break;
+                        if (!selected.includes(word)) selected.push(word);
+                    }
+                }
+
+                // 選出 50 題後，再次打亂順序，避免錯題全部擠在前面
+                setPrintWords(selected.sort(() => 0.5 - Math.random()));
+            };
+
+            const handleRandomAll = () => {
+                // 1. 依照字母數量遞減排序 (由長到短)
+                const sortedByLength = [...words].sort((a, b) => b.en.length - a.en.length);
+                
+                // 2. 分成四堆難度，每堆 100 題 (對應 2 頁的份量)，並各自內部打亂
+                const chunk1 = sortedByLength.slice(0, 100).sort(() => 0.5 - Math.random());   // 最難 (長度最長)
+                const chunk2 = sortedByLength.slice(100, 200).sort(() => 0.5 - Math.random()); // 中難
+                const chunk3 = sortedByLength.slice(200, 300).sort(() => 0.5 - Math.random()); // 中易
+                const chunk4 = sortedByLength.slice(300, 400).sort(() => 0.5 - Math.random()); // 最容易 (長度最短)
+
+                // 3. 依難度順序合併
+                setPrintWords([...chunk1, ...chunk2, ...chunk3, ...chunk4]);
+            };
+
+            const handleReset = () => {
+                setPrintWords(words);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white overflow-auto">
+                    {/* Control Bar - Hidden when printing */}
+                    <div className="max-w-5xl mx-auto mb-8 px-4 flex flex-wrap justify-between items-center gap-4 no-print sticky top-0 z-50 bg-gray-200 py-3 shadow-sm rounded-b-lg">
+                        <button onClick={() => setView('menu')} className="bg-white px-4 py-2 rounded-lg shadow font-bold text-gray-700 hover:bg-gray-50 border">
+                            ← 返回
+                        </button>
+                        
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={handleReset} className="bg-white text-gray-700 px-3 py-2 rounded-lg shadow font-bold border border-gray-200 hover:bg-gray-50 transition text-sm">
+                                預設排序
+                            </button>
+                            <button onClick={handleRandom50} className="bg-white text-purple-700 px-3 py-2 rounded-lg shadow font-bold border border-purple-200 hover:bg-purple-50 transition text-sm">
+                                🎲 隨機50題
+                            </button>
+                            <button onClick={handleRandom50Hard} className="bg-white text-red-700 px-3 py-2 rounded-lg shadow font-bold border border-red-200 hover:bg-red-50 transition text-sm">
+                                🔥 隨機50題(困難)
+                            </button>
+                            <button onClick={handleRandomAll} className="bg-white text-purple-700 px-3 py-2 rounded-lg shadow font-bold border border-purple-200 hover:bg-purple-50 transition text-sm">
+                                🌪️ 全部題本(分級亂數)
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setShowAnswers(!showAnswers)} 
+                                className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow font-bold border border-blue-200 hover:bg-blue-50 transition text-sm sm:text-base"
+                            >
+                                {showAnswers ? '👁️ 隱藏解答' : '📝 顯示解答'}
+                            </button>
+                            <button 
+                                onClick={() => window.print()} 
+                                className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow font-bold hover:bg-blue-700 transition flex items-center gap-2 text-sm sm:text-base"
+                            >
+                                <span>🖨️</span> 列印
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Print Pages Container */}
+                    <div className="print-container w-full">
+                        {pages.map((pageData, pageIndex) => (
+                            <div key={pageIndex} className="a4-landscape">
+                                {/* Page Header */}
+                                <div className="text-center font-bold text-lg mb-2 no-print text-gray-500">
+                                    預覽: 第 {pageIndex + 1} 頁 (共 {pages.length} 頁)
+                                </div>
+                                
+                                <table className="w-full print-table table-fixed border-collapse border-2 border-black bg-white flex-1">
+                                    <colgroup>
+                                        {/* Create 5 pairs of columns (10 total columns) */}
+                                        {Array.from({ length: WORDS_PER_ROW }).map((_, i) => (
+                                            <React.Fragment key={i}>
+                                                <col style={{ width: '8%' }} />  {/* Chinese Col (40% of pair) */}
+                                                <col style={{ width: '12%' }} /> {/* English Col (60% of pair) */}
+                                            </React.Fragment>
+                                        ))}
+                                    </colgroup>
+                                    <tbody>
+                                        {Array.from({ length: ROWS_PER_PAGE }).map((_, rowIndex) => {
+                                            const rowWords = pageData.slice(rowIndex * WORDS_PER_ROW, (rowIndex + 1) * WORDS_PER_ROW);
+                                            return (
+                                                <tr key={rowIndex}>
+                                                    {Array.from({ length: WORDS_PER_ROW }).map((_, colIndex) => {
+                                                        const word = rowWords[colIndex];
+                                                        return (
+                                                            <React.Fragment key={colIndex}>
+                                                                <td className="border border-black p-1 text-[13px] sm:text-sm text-center break-words bg-gray-50 align-middle leading-tight font-medium text-gray-800">
+                                                                    {word ? word.zh : ''}
+                                                                </td>
+                                                                <td className="border border-black p-1 text-[15px] sm:text-base text-center break-words align-middle font-mono leading-tight text-gray-900 font-bold">
+                                                                    {(word && showAnswers) ? word.en : ''}
+                                                                </td>
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [words, setWords] = useState(INITIAL_WORDS);
+            const [history, setHistory] = useState([]);
+            const [view, setView] = useState('menu'); 
+            const [summaryTab, setSummaryTab] = useState('words'); 
+            const [redemptionTarget, setRedemptionTarget] = useState(null); // Word object for redemption
+            
+            // Quiz State
+            const [quizData, setQuizData] = useState([]);
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [quizScore, setQuizScore] = useState(0);
+            const [quizFeedback, setQuizFeedback] = useState(null); 
+            const [userAnswer, setUserAnswer] = useState('');
+            const [quizStartTime, setQuizStartTime] = useState(null);
+            
+            const sessionResultsRef = useRef([]); 
+
+            // Detail View State
+            const [selectedHistory, setSelectedHistory] = useState(null);
+
+            // Load Data & History
+            useEffect(() => {
+                const savedData = localStorage.getItem('vocabApp_data_v1');
+                if (savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        const merged = INITIAL_WORDS.map(initWord => {
+                            const savedWord = parsed.find(p => p.id === initWord.id);
+                            return savedWord ? { 
+                                ...initWord, 
+                                reviewed: savedWord.reviewed, 
+                                errors: savedWord.errors,
+                                slipped: savedWord.slipped || false 
+                            } : initWord;
+                        });
+                        setWords(merged);
+                    } catch (e) { console.error("Load words error", e); }
+                }
+
+                const savedHistory = localStorage.getItem('vocabApp_history_v1');
+                if (savedHistory) {
+                    try {
+                        setHistory(JSON.parse(savedHistory));
+                    } catch (e) { console.error("Load history error", e); }
+                }
+            }, []);
+
+            // Save Data
+            useEffect(() => {
+                localStorage.setItem('vocabApp_data_v1', JSON.stringify(words));
+            }, [words]);
+
+            // Save History
+            useEffect(() => {
+                localStorage.setItem('vocabApp_history_v1', JSON.stringify(history));
+            }, [history]);
+
+            // Icons
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            // --- History Management Functions ---
+
+            const importData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (importedData.stats && importedData.history) {
+                            if(confirm("確定要匯入此紀錄嗎？這將覆蓋目前的學習進度。")) {
+                                const mergedWords = INITIAL_WORDS.map(initWord => {
+                                    const importedWord = importedData.stats.find(p => p.id === initWord.id);
+                                    return importedWord ? { 
+                                        ...initWord, 
+                                        reviewed: importedWord.reviewed, 
+                                        errors: importedWord.errors,
+                                        slipped: importedWord.slipped || false 
+                                    } : initWord;
+                                });
+                                setWords(mergedWords);
+                                setHistory(importedData.history);
+                                alert("匯入成功！");
+                            }
+                        } else {
+                            alert("檔案格式錯誤：找不到必要的數據欄位。");
+                        }
+                    } catch (error) {
+                        console.error("Import error:", error);
+                        alert("匯入失敗：檔案格式無效。");
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = null; 
+            };
+
+            const deleteHistoryItem = (recordId) => {
+                if(!confirm("確定要刪除這筆測驗記錄嗎？相關的複習與錯誤次數將會自動扣除。")) return;
+
+                const recordToDelete = history.find(r => r.id === recordId);
+                if (!recordToDelete) return;
+
+                const newWords = [...words];
+                recordToDelete.details.forEach(detail => {
+                    const wordIndex = newWords.findIndex(w => w.id === detail.id);
+                    if (wordIndex !== -1) {
+                        newWords[wordIndex].reviewed = Math.max(0, newWords[wordIndex].reviewed - 1);
+                        if (!detail.isCorrect) {
+                            newWords[wordIndex].errors = Math.max(0, newWords[wordIndex].errors - 1);
+                        }
+                    }
+                });
+
+                const newHistory = history.filter(r => r.id !== recordId);
+                setWords(newWords);
+                setHistory(newHistory);
+            };
+
+            const clearAllHistory = () => {
+                if(!confirm("⚠️ 警告：確定要清空所有歷程嗎？\n\n這將會：\n1. 刪除所有測驗記錄\n2. 重置所有單字的複習與錯誤次數\n\n此動作無法復原。")) return;
+                
+                setHistory([]);
+                const resetWords = words.map(w => ({ ...w, reviewed: 0, errors: 0, slipped: false }));
+                setWords(resetWords);
+            };
+
+            // --- Redemption Logic ---
+            const handleRedemptionSuccess = (wordId) => {
+                const newWords = words.map(w => {
+                    if (w.id === wordId) {
+                        const newErrors = Math.max(0, w.errors - 1);
+                        return {
+                            ...w,
+                            errors: newErrors,
+                            // If errors drop to 0, mark as slipped (previously wrong but redeemed)
+                            slipped: newErrors === 0 ? true : w.slipped
+                        };
+                    }
+                    return w;
+                });
+                setWords(newWords);
+                setRedemptionTarget(null);
+                alert("🎉 挑戰成功！錯誤次數已扣除。");
+            };
+
+            // --- Game Logic ---
+
+            const startQuiz = (mode) => {
+                let selection = [];
+                const poolSize = 25;
+
+                if (mode === 'random') {
+                    const unreviewed = words.filter(w => w.reviewed === 0);
+                    const reviewed = words.filter(w => w.reviewed > 0);
+                    
+                    const shuffledUnreviewed = [...unreviewed].sort(() => 0.5 - Math.random());
+                    const shuffledReviewed = [...reviewed].sort(() => 0.5 - Math.random());
+                    
+                    selection = [...shuffledUnreviewed, ...shuffledReviewed].slice(0, poolSize);
+                    
+                } else if (mode === 'smart') {
+                    // Logic Updated:
+                    // 1. All current errors (priority 1)
+                    const currentErrors = words.filter(w => w.errors > 0);
+                    const shuffledCurrentErrors = [...currentErrors].sort(() => 0.5 - Math.random());
+                    
+                    // 2. Queue of slipped (past errors), take 3~5 randomly
+                    const slippedWords = words.filter(w => w.slipped && w.errors === 0);
+                    const shuffledSlipped = [...slippedWords].sort(() => 0.5 - Math.random());
+                    const countFromPast = Math.floor(Math.random() * 3) + 3; // 3 to 5
+                    const selectedSlipped = shuffledSlipped.slice(0, countFromPast);
+
+                    // 3. Unreviewed words (priority 3)
+                    const unreviewedWords = words.filter(w => w.reviewed === 0);
+                    const shuffledUnreviewed = [...unreviewedWords].sort(() => 0.5 - Math.random());
+
+                    // 4. Fillers (reviewed but no error)
+                    const otherWords = words.filter(w => w.reviewed > 0 && w.errors === 0 && !w.slipped);
+                    const shuffledOthers = [...otherWords].sort(() => 0.5 - Math.random());
+
+                    // Build selection list strictly by priority
+                    let selectedList = [
+                        ...shuffledCurrentErrors,
+                        ...selectedSlipped
+                    ];
+
+                    // Remove potential duplicates (though sets should be disjoint)
+                    selectedList = Array.from(new Set(selectedList.map(w => w.id)))
+                        .map(id => words.find(w => w.id === id));
+
+                    // Calculate remaining slots for unreviewed words
+                    let remainingCount = poolSize - selectedList.length;
+
+                    if (remainingCount > 0) {
+                        const unreviewedToAdd = shuffledUnreviewed.slice(0, remainingCount);
+                        selectedList = [...selectedList, ...unreviewedToAdd];
+                        
+                        // Recalculate for fillers
+                        remainingCount = poolSize - selectedList.length;
+                    }
+
+                    if (remainingCount > 0) {
+                        const othersToAdd = shuffledOthers.slice(0, remainingCount);
+                        selectedList = [...selectedList, ...othersToAdd];
+                    }
+
+                    // Final shuffle so the quiz order isn't predictable (e.g. always errors first)
+                    selection = selectedList.sort(() => 0.5 - Math.random());
+                }
+
+                setQuizData(selection);
+                setCurrentQIndex(0);
+                setQuizScore(0);
+                setQuizFeedback(null);
+                setUserAnswer('');
+                
+                sessionResultsRef.current = [];
+                
+                setQuizStartTime(Date.now());
+                setView('quiz');
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (quizFeedback) return;
+
+                const currentWord = quizData[currentQIndex];
+                const cleanUserAnswer = userAnswer.trim().toLowerCase();
+                const cleanCorrectAnswer = currentWord.en.toLowerCase();
+                const isCorrect = cleanUserAnswer === cleanCorrectAnswer;
+
+                const resultEntry = {
+                    ...currentWord,
+                    isCorrect: isCorrect,
+                    userAnswer: userAnswer
+                };
+                sessionResultsRef.current.push(resultEntry);
+
+                const updatedWords = words.map(w => {
+                    if (w.id === currentWord.id) {
+                        return {
+                            ...w,
+                            reviewed: w.reviewed + 1,
+                            errors: isCorrect ? w.errors : w.errors + 1
+                        };
+                    }
+                    return w;
+                });
+                setWords(updatedWords);
+
+                if (isCorrect) {
+                    setQuizScore(prev => prev + 1);
+                    setQuizFeedback('correct');
+                    setTimeout(nextQuestion, 800);
+                } else {
+                    setQuizFeedback('wrong');
+                    setTimeout(nextQuestion, 2500);
+                }
+            };
+
+            const nextQuestion = () => {
+                setQuizFeedback(null);
+                setUserAnswer('');
+                if (currentQIndex < quizData.length - 1) {
+                    setCurrentQIndex(prev => prev + 1);
+                } else {
+                    finishQuiz();
+                }
+            };
+
+            const finishQuiz = () => {
+                const endTime = Date.now();
+                const duration = Math.floor((endTime - quizStartTime) / 1000); 
+                
+                const finalResults = [...sessionResultsRef.current];
+                const finalScore = finalResults.filter(r => r.isCorrect).length;
+
+                const newRecord = {
+                    id: endTime,
+                    timestamp: endTime,
+                    duration: duration,
+                    score: finalScore, 
+                    total: quizData.length,
+                    details: finalResults
+                };
+
+                setHistory(prev => [newRecord, ...prev]);
+                setView('result');
+            };
+
+            const exportJSON = () => {
+                const formatStats = (list) => {
+                    if (!list || list.length === 0) return "[]";
+                    const items = list.map(item => `    ${JSON.stringify(item)}`);
+                    return `[\n${items.join(",\n")}\n  ]`;
+                };
+
+                const formatHistory = (list) => {
+                    if (!list || list.length === 0) return "[]";
+                    const items = list.map(record => {
+                        const detailsItems = record.details.map(d => {
+                            const { reviewed, errors, slipped, ...keep } = d; // Filter out tracking props
+                            return `        ${JSON.stringify(keep)}`;
+                        });
+                        const detailsStr = `[\n${detailsItems.join(",\n")}\n      ]`;
+                        return `    {
+    "id": ${record.id}, "timestamp": ${record.timestamp}, "duration": ${record.duration}, "score": ${record.score}, "total": ${record.total},  "details": ${detailsStr}
+    }`;
+                    });
+                    return `[\n${items.join(",\n")}\n  ]`;
+                };
+
+                const jsonString = `{\n  "stats": ${formatStats(words)},\n  "history": ${formatHistory(history)}\n}`;
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "vocab_full_data.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            };
+
+            const openHistoryDetail = (record) => {
+                setSelectedHistory(record);
+                setView('historyDetail');
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    {view === 'menu' && (
+                        <MenuScreen 
+                            startQuiz={startQuiz} 
+                            setView={setView} 
+                            exportJSON={exportJSON} 
+                            words={words} 
+                            history={history} 
+                            importData={importData}
+                        />
+                    )}
+                    {view === 'quiz' && (
+                        <QuizScreen 
+                            quizData={quizData}
+                            currentQIndex={currentQIndex}
+                            quizScore={quizScore}
+                            quizFeedback={quizFeedback}
+                            userAnswer={userAnswer}
+                            setUserAnswer={setUserAnswer}
+                            handleSubmit={handleSubmit}
+                            setView={setView}
+                            quizStartTime={quizStartTime}
+                        />
+                    )}
+                    {view === 'result' && (
+                        <ResultScreen 
+                            quizScore={quizScore} 
+                            totalQuestions={quizData.length} 
+                            setView={setView} 
+                        />
+                    )}
+                    {view === 'summary' && (
+                        <SummaryScreen 
+                            setView={setView} 
+                            exportJSON={exportJSON} 
+                            words={words} 
+                            history={history} 
+                            openHistoryDetail={openHistoryDetail} 
+                            activeTab={summaryTab}
+                            setActiveTab={setSummaryTab}
+                            deleteHistoryItem={deleteHistoryItem}
+                            clearAllHistory={clearAllHistory}
+                            startRedemption={(word) => setRedemptionTarget(word)}
+                        />
+                    )}
+                    {view === 'historyDetail' && (
+                        <HistoryDetailScreen 
+                            selectedHistory={selectedHistory} 
+                            setView={setView} 
+                            exportJSON={exportJSON}
+                        />
+                    )}
+                    {view === 'print' && (
+                        <PrintScreen 
+                            words={words} 
+                            setView={setView} 
+                        />
+                    )}
+
+                    {/* Redemption Modal Layer */}
+                    {redemptionTarget && (
+                        <RedemptionModal 
+                            word={redemptionTarget}
+                            onClose={() => setRedemptionTarget(null)}
+                            onRedeem={handleRedemptionSuccess}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
