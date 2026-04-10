@@ -5,6 +5,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2025 互動遊戲學習入口網</title>
     <style>
+	/* 彈出視窗背景 (預設隱藏) */
+.modal {
+    display: none; /* 預設隱藏 */
+    position: fixed; 
+    z-index: 1000; /* 確保在最上層 */
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0,0,0,0.75); /* 半透明黑色背景 */
+}
+
+/* 彈出視窗內容區塊 */
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto; /* 距離頂部 10% 並水平置中 */
+    padding: 20px;
+    border-radius: 10px;
+    width: 80%;
+    max-width: 700px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+/* 關閉按鈕 (右上角的 X) */
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: #333;
+    text-decoration: none;
+}
+
+/* 頁籤容器 */
+.tab {
+    overflow: hidden;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 15px;
+}
+
+/* 頁籤按鈕樣式 */
+.tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 10px 16px;
+    transition: 0.3s;
+    font-size: 16px;
+    border-radius: 5px 5px 0 0;
+}
+
+/* 游標移過頁籤時的背景色 */
+.tab button:hover {
+    background-color: #f1f1f1;
+}
+
+/* 當前啟用的頁籤樣式 */
+.tab button.active {
+    background-color: #e2e8f0;
+    font-weight: bold;
+    border-bottom: 2px solid #4CAF50; /* 底部高亮線條 */
+}
+
+/* 頁籤內容預設隱藏 */
+.tabcontent {
+    display: none;
+    animation: fadeEffect 0.5s; /* 加入淡入效果 */
+}
+
+/* 淡入動畫 */
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+
+/* 備忘錄輸入框樣式 */
+.tabcontent textarea {
+    width: 100%;
+    height: 500px;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: vertical; /* 允許垂直拉伸 */
+    font-size: 14px;
+    font-family: inherit;
+}
+	
         :root {
             --primary-color: #6a11cb;
             --secondary-color: #2575fc;
@@ -257,6 +352,7 @@
                 <a href="2025web/其他工具.html">PNG去背工具</a>
                 <a href="2025web/400單智慧複習系統v0.4.0.html">400單智慧複習系統</a>
                 <a href="2025web/繳費狀態分析器.html">繳費狀態分析器</a>
+				<a href="#" id="openMemoBtn">POP 文字備忘錄</a>
             </div>            
 
         </div>
@@ -347,5 +443,79 @@
 
 
         </div>
+		
+<div id="memoModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2>📝 快速備忘錄</h2>
+        
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'tab-word')">📘 Word</button>
+            <button class="tablinks" onclick="openTab(event, 'tab-work')">💼 工作</button>
+            <button class="tablinks" onclick="openTab(event, 'tab-life')">🏠 生活</button>
+            <button class="tablinks" onclick="openTab(event, 'tab-idea')">💡 靈感</button>
+        </div>
+
+        <div id="tab-word" class="tabcontent" style="display: block;">
+			<textarea >一次性清除Word文檔中的分節符：
+合併列印多條記錄時，製成的新文檔是分節的，每條記錄自成一節。
+可以修改每一節的版面設定（如直向橫向、紙張大小、邊界等等）、頁首頁尾等等，而不影響其他的節。
+
+使用“尋找及取代”功能來實現一次性清除Word文檔中的分節符：
+
+Ctrl+F  “尋找目標(N)”欄位輸入 ^b
+“取代為(D)”欄位輸入 ^p^m   即可一次取代所有分節符號。
+			</textarea>
+
+        </div>
+        <div id="tab-work" class="tabcontent">
+            <textarea placeholder="在這裡記錄工作待辦事項..."></textarea>
+        </div>
+
+        <div id="tab-life" class="tabcontent">
+            <textarea placeholder="在這裡記錄生活瑣事或購物清單..."></textarea>
+        </div>
+
+        <div id="tab-idea" class="tabcontent">
+            <textarea placeholder="隨時記錄突然冒出的好點子..."></textarea>
+        </div>
+    </div>
+</div>		
+
+	<script>
+// 取得相關的 DOM 元素
+const modal = document.getElementById("memoModal");
+const openBtn = document.getElementById("openMemoBtn");
+const closeBtn = document.querySelector(".close-btn");
+
+// 1. 點擊「POP 文字備忘錄」開啟 Modal
+openBtn.onclick = function(e) {    e.preventDefault(); // 防止 <a> 標籤預設的跳轉行為
+    modal.style.display = "block";
+}
+
+// 2. 點擊右上角的 [X] 關閉 Modal
+closeBtn.onclick = function() {    modal.style.display = "none";}
+
+// 3. 點擊 Modal 外的灰色背景也能關閉視窗
+window.onclick = function(event) {    if (event.target == modal) {        modal.style.display = "none";    }}
+
+// 4. 切換頁籤的功能
+function openTab(evt, tabName) {
+    let i, tabcontent, tablinks;
+
+    // 隱藏所有 tabcontent
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {        tabcontent[i].style.display = "none";    }
+
+    // 移除所有 tablinks 的 "active" class
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {        tablinks[i].className = tablinks[i].className.replace(" active", "");    }
+
+    // 顯示當前點擊的頁籤內容，並將該按鈕加上 "active" class
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+}	
+	
+	</script>		
 </body>
 </html>
