@@ -440,6 +440,18 @@
                 <a href="2025web/找找看V1.0-特教適用/找找看V1.0-特教適用.html" class="btn">開始尋找</a>
             </div>
         </div>
+        <div class="card">
+            <div class="card-icon">
+                🔢
+            </div>
+            <div class="card-body">
+                <div>
+                    <h3 class="card-title">水果加法小遊戲</h3>
+                    <p class="card-desc">1~20加法練習</p>
+                </div>
+                <a href="2025web/水果加法小遊戲.html" class="btn">開始計算</a>
+            </div>
+        </div>
 
 
         </div>
@@ -457,7 +469,7 @@
         </div>
 
         <div id="tab-word" class="tabcontent" style="display: block;">
-			<textarea >一次性清除Word文檔中的分節符：
+			<textarea >一次性清除Word 合併列印後文檔中的分節符：
 合併列印多條記錄時，製成的新文檔是分節的，每條記錄自成一節。
 可以修改每一節的版面設定（如直向橫向、紙張大小、邊界等等）、頁首頁尾等等，而不影響其他的節。
 
@@ -465,6 +477,25 @@
 
 Ctrl+F  “尋找目標(N)”欄位輸入 ^b
 “取代為(D)”欄位輸入 ^p^m   即可一次取代所有分節符號。
+
+
+合併列印中顯示大寫數字
+數字  結果   功能變數
+Word 端 「合併欄位」→滑鼠右鍵→切換功能變數代碼→加入變數→更新功能變數
+12345678  一二三四五六七八  {MERGEFIELD 數字 \*DBNUM1}
+123456  壹拾貳萬參仟肆佰伍拾陸(註)  {MERGEFIELD 數字 \*DBNUM2}
+123456  一十二萬三千四百五十六(註)  {MERGEFIELD 數字 \*DBNUM3}
+12345678   12,345,678   {MERGEFIELD 數字 \#,##0}
+12345678   $12,345,678  {MERGEFIELD 數字 \#$#,##0}
+12345678   12,345,678.00{MERGEFIELD 數字 \#,##0.00}
+(無法轉換超過百萬的數字，最多六位數，超過六個數字時，將Excel存成.csv檔，再進行合併列印來解決。)
+
+
+另一個方法:
+在Excel利用text()函數，將中文、數字、日期欄位值變成文字後，再合併列印解決，就不用擔心格式會不正確。 
+
+數字  在Excel插入Text函數  合併到Word的結果
+12345678  =text(儲存格,"[DBNUM2]")   壹仟貳佰參拾肆萬伍仟陸佰柒拾捌
 			</textarea>
 
         </div>

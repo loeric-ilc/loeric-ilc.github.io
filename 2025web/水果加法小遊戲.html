@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水果加法小遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #fdfbf7;
+            background-image: radial-gradient(#e2e8f0 2px, transparent 2px);
+            background-size: 30px 30px;
+        }
+        /* 隱藏數字輸入框的上下箭頭 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        .fruit-box {
+            /* 改用 Flexbox 讓較多水果時能自動換行並置中 */
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen py-8 px-4 flex flex-col items-center">
+
+    <div class="max-w-4xl w-full bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border-4 border-yellow-100 p-6 sm:p-10">
+        
+        <!-- 標題區 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-orange-500 mb-4 tracking-wide">
+                🍎 水果加法小遊戲 🍌
+            </h1>
+            <p class="text-xl text-gray-500 font-bold mb-6">數一數，加起來總共是多少呢？</p>
+            
+            <!-- 難度選擇區 -->
+            <div class="flex flex-wrap justify-center gap-2 sm:gap-4">
+                <button id="tab-1-10" onclick="setDifficulty('tab-1-10', 2, 10)" class="px-5 py-2 rounded-full font-bold text-lg border-4 transition-all bg-yellow-400 border-yellow-500 text-white shadow-sm hover:translate-y-[1px]">1~10</button>
+                <button id="tab-11-20" onclick="setDifficulty('tab-11-20', 11, 20)" class="px-5 py-2 rounded-full font-bold text-lg border-4 transition-all bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm hover:translate-y-[1px]">11~20</button>
+                <button id="tab-1-20" onclick="setDifficulty('tab-1-20', 2, 20)" class="px-5 py-2 rounded-full font-bold text-lg border-4 transition-all bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm hover:translate-y-[1px]">1~20</button>
+            </div>
+        </div>
+
+        <!-- 題目生成區 -->
+        <div id="questions-container" class="flex flex-col gap-6">
+            <!-- 題目會由 JavaScript 動態生成在這裡 -->
+        </div>
+
+        <!-- 結果與按鈕區 -->
+        <div class="mt-10 flex flex-col items-center">
+            <div id="result" class="hidden w-full max-w-md mb-6 transition-all duration-300">
+                <!-- 顯示分數 -->
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="checkAnswers()" class="px-8 py-4 bg-green-500 hover:bg-green-400 text-white text-2xl font-bold rounded-2xl shadow-[0_6px_0_#16a34a] hover:shadow-[0_4px_0_#16a34a] hover:translate-y-[2px] transition-all">
+                    ✔️ 檢查答案
+                </button>
+                <button onclick="initGame()" class="px-8 py-4 bg-blue-500 hover:bg-blue-400 text-white text-2xl font-bold rounded-2xl shadow-[0_6px_0_#2563eb] hover:shadow-[0_4px_0_#2563eb] hover:translate-y-[2px] transition-all">
+                    🔄 再玩一次
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 數字選擇彈出視窗 (Numpad Modal) -->
+    <div id="numpad-modal" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="numpad-content">
+            <h3 class="text-2xl font-extrabold text-center mb-4 text-blue-500">請選擇答案</h3>
+            <div id="numpad-grid" class="grid grid-cols-5 gap-2 sm:gap-3 mb-6">
+                <!-- 數字按鈕會由 JS 動態生成 -->
+            </div>
+            <div class="flex justify-between gap-3">
+                <button onclick="clearInput()" class="flex-1 py-3 bg-red-400 hover:bg-red-500 text-white rounded-xl font-bold text-xl shadow-[0_4px_0_#b91c1c] hover:translate-y-[2px] hover:shadow-[0_2px_0_#b91c1c] transition-all">清除為 ?</button>
+                <button onclick="closeNumpad()" class="flex-1 py-3 bg-gray-400 hover:bg-gray-500 text-white rounded-xl font-bold text-xl shadow-[0_4px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[0_2px_0_#4b5563] transition-all">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const NUM_QUESTIONS = 5;
+        const emojis = ['🍎', '🍌', '🍇', '🍑', '🍊', '🍓'];
+        const borderColors = [
+            'border-red-400', 'border-orange-400', 'border-yellow-400', 
+            'border-green-400', 'border-blue-400', 'border-purple-400'
+        ];
+        
+        let questions = [];
+        let difficultyMin = 2;
+        let difficultyMax = 10;
+        let currentEditingIndex = null;
+
+        // 設定難度
+        function setDifficulty(tabId, min, max) {
+            difficultyMin = min;
+            difficultyMax = max;
+            
+            // 更新頁籤樣式
+            const tabs = ['tab-1-10', 'tab-11-20', 'tab-1-20'];
+            tabs.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === tabId) {
+                    el.className = 'px-5 py-2 rounded-full font-bold text-lg border-4 transition-all bg-yellow-400 border-yellow-500 text-white shadow-sm hover:translate-y-[1px]';
+                } else {
+                    el.className = 'px-5 py-2 rounded-full font-bold text-lg border-4 transition-all bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm hover:translate-y-[1px]';
+                }
+            });
+            
+            initGame();
+        }
+
+        // 初始化數字鍵盤
+        function initNumpad() {
+            const grid = document.getElementById('numpad-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= 20; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'py-2 sm:py-3 bg-blue-50 hover:bg-blue-200 text-blue-700 border-2 border-blue-200 rounded-xl font-bold text-xl sm:text-2xl transition-colors shadow-sm';
+                btn.innerText = i;
+                btn.onclick = () => selectNumber(i);
+                grid.appendChild(btn);
+            }
+        }
+
+        // 開啟數字選擇器
+        function openNumpad(index) {
+            currentEditingIndex = index;
+            const modal = document.getElementById('numpad-modal');
+            const content = document.getElementById('numpad-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        // 關閉數字選擇器
+        function closeNumpad() {
+            const modal = document.getElementById('numpad-modal');
+            const content = document.getElementById('numpad-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                currentEditingIndex = null;
+            }, 300);
+        }
+
+        // 選擇數字
+        function selectNumber(num) {
+            if (currentEditingIndex !== null) {
+                const box = document.getElementById(`input-${currentEditingIndex}`);
+                box.innerText = num;
+                box.dataset.value = num;
+                box.classList.remove('border-red-400', 'bg-red-50', 'text-gray-400');
+                box.classList.add('text-blue-600', 'border-blue-400', 'bg-white'); 
+            }
+            closeNumpad();
+        }
+
+        // 清除選擇的數字
+        function clearInput() {
+            if (currentEditingIndex !== null) {
+                const box = document.getElementById(`input-${currentEditingIndex}`);
+                box.innerText = '?';
+                box.dataset.value = '';
+                box.classList.remove('text-blue-600', 'text-green-600', 'text-red-600', 'border-red-400', 'bg-red-50', 'border-green-400', 'bg-green-50');
+                box.classList.add('text-gray-400', 'border-blue-200', 'bg-white');
+            }
+            closeNumpad();
+        }
+
+        // 初始化遊戲
+        function initGame() {
+            questions = [];
+            const qContainer = document.getElementById('questions-container');
+            qContainer.innerHTML = '';
+            
+            // 隱藏結果提示
+            const resultDiv = document.getElementById('result');
+            resultDiv.classList.add('hidden');
+            resultDiv.className = 'hidden w-full max-w-md mb-6 transition-all duration-300';
+
+            for (let i = 0; i < NUM_QUESTIONS; i++) {
+                // 根據難度隨機產生總和
+                let sum = Math.floor(Math.random() * (difficultyMax - difficultyMin + 1)) + difficultyMin; 
+                // 隨機分配被加數與加數 (至少為 1)
+                let a = Math.floor(Math.random() * (sum - 1)) + 1;
+                let b = sum - a;
+                
+                // 隨機選擇水果與邊框顏色
+                let fruit = emojis[Math.floor(Math.random() * emojis.length)];
+                let color1 = borderColors[Math.floor(Math.random() * borderColors.length)];
+                let color2 = borderColors[Math.floor(Math.random() * borderColors.length)];
+
+                questions.push({ a, b, sum, fruit });
+
+                // 產生 HTML 元素並加入畫面
+                qContainer.appendChild(createQuestionElement(i, a, b, fruit, color1, color2));
+            }
+        }
+
+        // 建立單題題目的 HTML 結構
+        function createQuestionElement(index, a, b, fruit, color1, color2) {
+            const row = document.createElement('div');
+            row.className = 'flex flex-wrap items-center justify-center sm:justify-between gap-4 p-4 sm:p-6 bg-gray-50/50 rounded-2xl border-2 border-gray-100 hover:border-blue-200 transition-colors';
+
+            // 依數量動態調整水果字體大小 (超過 10 個稍微縮小以免超出)
+            const fontSizeA = a > 10 ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl';
+            const fontSizeB = b > 10 ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl';
+
+            // 左邊的水果框 (被加數)
+            const box1 = document.createElement('div');
+            box1.className = `fruit-box min-w-[7rem] min-h-[6rem] sm:min-w-[9rem] sm:min-h-[7rem] border-4 rounded-[2rem] p-3 bg-white ${color1} ${fontSizeA}`;
+            box1.innerHTML = generateFruits(a, fruit);
+
+            // 加號
+            const plus = document.createElement('div');
+            plus.className = 'text-4xl sm:text-5xl font-extrabold text-gray-400';
+            plus.innerText = '+';
+
+            // 右邊的水果框 (加數)
+            const box2 = document.createElement('div');
+            box2.className = `fruit-box min-w-[7rem] min-h-[6rem] sm:min-w-[9rem] sm:min-h-[7rem] border-4 rounded-[2rem] p-3 bg-white ${color2} ${fontSizeB}`;
+            box2.innerHTML = generateFruits(b, fruit);
+
+            // 等號
+            const eq = document.createElement('div');
+            eq.className = 'text-4xl sm:text-5xl font-extrabold text-gray-400';
+            eq.innerText = '=';
+
+            // 輸入框與回饋圖示區 (改為按鈕觸發彈出選單)
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'flex items-center gap-3 relative';
+
+            const input = document.createElement('button');
+            input.id = `input-${index}`;
+            input.dataset.value = '';
+            input.innerText = '?';
+            input.onclick = () => openNumpad(index);
+            input.className = 'w-16 h-16 sm:w-20 sm:h-20 border-4 border-blue-200 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-bold text-gray-400 bg-white hover:bg-blue-50 hover:border-blue-400 transition-all shadow-sm';
+            
+            const feedback = document.createElement('div');
+            feedback.id = `feedback-${index}`;
+            feedback.className = 'absolute -right-10 text-3xl opacity-0 transition-opacity';
+
+            inputContainer.appendChild(input);
+            inputContainer.appendChild(feedback);
+
+            // 將所有元素加入該列
+            row.appendChild(box1);
+            row.appendChild(plus);
+            row.appendChild(box2);
+            row.appendChild(eq);
+            row.appendChild(inputContainer);
+
+            return row;
+        }
+
+        // 產生多個水果的 HTML
+        function generateFruits(count, fruitStr) {
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                html += `<span>${fruitStr}</span>`;
+            }
+            return html;
+        }
+
+        // 檢查答案
+        function checkAnswers() {
+            let correctCount = 0;
+            let allAnswered = true;
+
+            for (let i = 0; i < NUM_QUESTIONS; i++) {
+                const inputElement = document.getElementById(`input-${i}`);
+                const feedbackElement = document.getElementById(`feedback-${i}`);
+                
+                // 改從 dataset 取值
+                const valStr = inputElement.dataset.value;
+                const userAnswer = parseInt(valStr);
+
+                // 檢查是否漏答
+                if (!valStr || isNaN(userAnswer)) {
+                    allAnswered = false;
+                    continue; 
+                }
+
+                feedbackElement.classList.remove('opacity-0');
+
+                // 判斷對錯
+                if (userAnswer === questions[i].sum) {
+                    correctCount++;
+                    feedbackElement.innerHTML = '🌟';
+                    inputElement.classList.remove('border-blue-200', 'border-blue-400', 'border-red-400', 'bg-red-50', 'text-blue-600', 'text-gray-400');
+                    inputElement.classList.add('border-green-400', 'bg-green-50', 'text-green-600');
+                } else {
+                    feedbackElement.innerHTML = '❌';
+                    inputElement.classList.remove('border-blue-200', 'border-blue-400', 'border-green-400', 'bg-green-50', 'text-blue-600', 'text-gray-400');
+                    inputElement.classList.add('border-red-400', 'bg-red-50', 'text-red-600');
+                }
+            }
+
+            // 顯示結果面板
+            const resultDiv = document.getElementById('result');
+            resultDiv.classList.remove('hidden');
+
+            if (!allAnswered) {
+                resultDiv.innerHTML = '還有題目沒寫完喔！✍️';
+                resultDiv.className = 'mt-6 p-4 bg-orange-100 border-4 border-orange-300 text-orange-700 text-2xl font-bold rounded-2xl text-center';
+                return;
+            }
+
+            if (correctCount === NUM_QUESTIONS) {
+                resultDiv.innerHTML = `太棒了！全對！ 🎉 (${correctCount}/${NUM_QUESTIONS})`;
+                resultDiv.className = 'mt-6 p-4 bg-green-100 border-4 border-green-400 text-green-700 text-2xl font-bold rounded-2xl text-center animate-bounce';
+            } else {
+                resultDiv.innerHTML = `答對了 ${correctCount} 題，繼續加油！ 💪`;
+                resultDiv.className = 'mt-6 p-4 bg-yellow-100 border-4 border-yellow-400 text-yellow-700 text-2xl font-bold rounded-2xl text-center';
+            }
+        }
+
+        // 網頁載入時啟動遊戲並初始化數字鍵盤
+        window.onload = () => {
+            initNumpad();
+            initGame();
+        };
+    </script>
+</body>
+</html>
