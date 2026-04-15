@@ -37,7 +37,7 @@
     <div class="max-w-4xl w-full bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border-4 border-yellow-100 p-6 sm:p-10">
         
         <!-- 標題區 -->
-        <div class="text-center mb-8">
+        <div id="header-section" class="text-center mb-8 transition-all duration-300 transform">
             <h1 class="text-4xl sm:text-5xl font-extrabold text-orange-500 mb-4 tracking-wide">
                 🍎 水果加法小遊戲 🍌
             </h1>
@@ -74,9 +74,6 @@
 
     </div>
 
-    <!-- 透明背景層，用於點擊空白處關閉 -->
-    <div id="numpad-overlay" class="fixed inset-0 z-40 hidden cursor-pointer" onclick="closeNumpad()"></div>
-
     <!-- 數字選擇彈出視窗 (懸浮面板) -->
     <div id="numpad-modal" class="absolute top-full mt-3 right-0 sm:-right-2 z-50 hidden opacity-0 transform scale-95 origin-top-right transition-all duration-200 w-72 sm:w-80">
         <div class="bg-white rounded-3xl p-5 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border-4 border-blue-100" id="numpad-content">
@@ -107,6 +104,22 @@
         let difficultyMax = 10;
         let currentEditingIndex = null;
 
+        // 全域監聽點擊事件 (取代原本的 overlay)
+        document.addEventListener('click', (event) => {
+            const modal = document.getElementById('numpad-modal');
+            // 如果面板沒打開就什麼都不做
+            if (!modal || modal.classList.contains('hidden')) return;
+
+            // 如果點擊的是面板內部，不關閉
+            if (modal.contains(event.target)) return;
+
+            // 如果點擊的是用來打開面板的那個 "?" 按鈕本身，也不立刻關閉 (避免開啟瞬間被當作點擊外部而秒關)
+            if (event.target.closest('button[id^="input-"]')) return;
+
+            // 點擊空白處，關閉面板
+            closeNumpad();
+        });
+
         // 設定難度
         function setDifficulty(tabId, min, max) {
             difficultyMin = min;
@@ -134,7 +147,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'py-2 bg-blue-50 hover:bg-blue-200 text-blue-700 border-2 border-blue-200 rounded-xl font-bold text-lg sm:text-xl transition-colors shadow-sm';
                 btn.innerText = i;
-                btn.onclick = () => selectNumber(i);
+                btn.onclick = () => selectNumber(i); // 現在可以順利觸發了！
                 grid.appendChild(btn);
             }
         }
@@ -144,13 +157,11 @@
             currentEditingIndex = index;
             const inputContainer = document.getElementById(`input-container-${index}`);
             const modal = document.getElementById('numpad-modal');
-            const overlay = document.getElementById('numpad-overlay');
 
             // 將數字鍵盤搬移到當前點擊的題目框內 (實現懸浮在下方)
             inputContainer.appendChild(modal);
             
             modal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
 
             // 加上一點延遲以觸發 CSS 轉場動畫
             setTimeout(() => {
@@ -158,15 +169,22 @@
                 modal.classList.add('opacity-100', 'scale-100');
             }, 10);
 
+            // 模糊並縮小標題區
+            const header = document.getElementById('header-section');
+            if (header) {
+                header.classList.add('blur-md', 'opacity-40', 'scale-[0.98]');
+            }
+
             // 模糊並縮小其他題目，凸顯當前題目
             for (let i = 0; i < NUM_QUESTIONS; i++) {
                 const row = document.getElementById(`row-${i}`);
                 if (row) {
                     if (i !== index) {
+                        row.classList.remove('blur-sm'); // 清除舊設定(如有)
                         row.classList.add('blur-md', 'opacity-40', 'scale-[0.98]');
                         row.classList.remove('z-50', 'relative');
                     } else {
-                        row.classList.remove('blur-md', 'opacity-40', 'scale-[0.98]');
+                        row.classList.remove('blur-sm', 'blur-md', 'opacity-40', 'scale-[0.98]');
                         row.classList.add('z-50', 'relative');
                     }
                 }
@@ -176,22 +194,26 @@
         // 關閉數字選擇器
         function closeNumpad() {
             const modal = document.getElementById('numpad-modal');
-            const overlay = document.getElementById('numpad-overlay');
             
             modal.classList.remove('opacity-100', 'scale-100');
             modal.classList.add('opacity-0', 'scale-95');
+
+            // 恢復標題區
+            const header = document.getElementById('header-section');
+            if (header) {
+                header.classList.remove('blur-md', 'opacity-40', 'scale-[0.98]');
+            }
 
             // 恢復所有題目的顯示狀態
             for (let i = 0; i < NUM_QUESTIONS; i++) {
                 const row = document.getElementById(`row-${i}`);
                 if (row) {
-                    row.classList.remove('blur-md', 'opacity-40', 'scale-[0.98]', 'z-50', 'relative');
+                    row.classList.remove('blur-sm', 'blur-md', 'opacity-40', 'scale-[0.98]', 'z-50', 'relative');
                 }
             }
 
             setTimeout(() => {
                 modal.classList.add('hidden');
-                overlay.classList.add('hidden');
                 currentEditingIndex = null;
                 // 將 modal 移回 body，避免重新生成題目時被清掉
                 document.body.appendChild(modal);
@@ -202,8 +224,12 @@
         function selectNumber(num) {
             if (currentEditingIndex !== null) {
                 const box = document.getElementById(`input-${currentEditingIndex}`);
+                // 確實更新該題按鈕的顯示文字與各種 value 屬性，確保取值絕對正確
                 box.innerText = num;
                 box.dataset.value = num;
+                box.value = num;
+                box.setAttribute('value', num);
+                
                 box.classList.remove('border-red-400', 'bg-red-50', 'text-gray-400');
                 box.classList.add('text-blue-600', 'border-blue-400', 'bg-white'); 
             }
@@ -214,8 +240,12 @@
         function clearInput() {
             if (currentEditingIndex !== null) {
                 const box = document.getElementById(`input-${currentEditingIndex}`);
+                // 確實清空所有文字與值
                 box.innerText = '?';
                 box.dataset.value = '';
+                box.value = '';
+                box.removeAttribute('value');
+                
                 box.classList.remove('text-blue-600', 'text-green-600', 'text-red-600', 'border-red-400', 'bg-red-50', 'border-green-400', 'bg-green-50');
                 box.classList.add('text-gray-400', 'border-blue-200', 'bg-white');
             }
@@ -229,15 +259,16 @@
             if (modal && modal.parentNode !== document.body) {
                 document.body.appendChild(modal);
             }
-            // 確保重置介面狀態
+            
+            // 確保重置介面與標題區狀態
+            const header = document.getElementById('header-section');
+            if (header) header.classList.remove('blur-md', 'opacity-40', 'scale-[0.98]');
+
             for (let i = 0; i < NUM_QUESTIONS; i++) {
                 const row = document.getElementById(`row-${i}`);
-                if (row) row.classList.remove('blur-md', 'opacity-40', 'scale-[0.98]', 'z-50', 'relative');
+                if (row) row.classList.remove('blur-sm', 'blur-md', 'opacity-40', 'scale-[0.98]', 'z-50', 'relative');
             }
             currentEditingIndex = null;
-            if (document.getElementById('numpad-overlay')) {
-                document.getElementById('numpad-overlay').classList.add('hidden');
-            }
 
             questions = [];
             const qContainer = document.getElementById('questions-container');
@@ -304,7 +335,9 @@
 
             const input = document.createElement('button');
             input.id = `input-${index}`;
+            // 預設清空各種屬性的值
             input.dataset.value = '';
+            input.value = '';
             input.innerText = '?';
             input.onclick = () => openNumpad(index);
             input.className = 'w-16 h-16 sm:w-20 sm:h-20 border-4 border-blue-200 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-bold text-gray-400 bg-white hover:bg-blue-50 hover:border-blue-400 transition-all shadow-sm';
@@ -344,8 +377,8 @@
                 const inputElement = document.getElementById(`input-${i}`);
                 const feedbackElement = document.getElementById(`feedback-${i}`);
                 
-                // 改從 dataset 取值
-                const valStr = inputElement.dataset.value;
+                // 雙重保障：優先取 dataset.value，若無則取原生 value
+                const valStr = inputElement.dataset.value || inputElement.value;
                 const userAnswer = parseInt(valStr);
 
                 // 檢查是否漏答
