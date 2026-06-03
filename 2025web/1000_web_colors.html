@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantone® Style 1000 - 5x40 Matrix Perfect Fit</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f0f11;
+            --panel-bg: #1a1a1e;
+            --text-color: #ffffff;
+            --btn-accent: #007bff;
+            --btn-success: #28a745;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            padding: 15px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 頂部操作面板 */
+        .control-panel {
+            background: var(--panel-bg);
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #2d2d35;
+            flex-shrink: 0;
+        }
+        .info-zone h1 { font-size: 15px; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .info-zone p { font-size: 11px; color: #aaaaaa; }
+        
+        .btn-group { display: flex; gap: 8px; }
+        button {
+            padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 5px;
+            cursor: pointer; border: none; transition: all 0.2s;
+        }
+        .btn-print { background: var(--btn-accent); color: white; }
+        .btn-print:hover { background: #0056b3; }
+        .btn-pdf { background: var(--btn-success); color: white; }
+        .btn-pdf:hover { background: #1e7e34; }
+        
+        /* 畫布檢視容器 */
+        .canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #050505;
+            overflow: hidden;
+            border-radius: 6px;
+            border: 1px solid #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            background-color: #ffffff;
+        }
+        
+        /* 網頁滑鼠探針 */
+        .color-tooltip {
+            position: absolute;
+            background: rgba(10, 10, 12, 0.95);
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 11px;
+            border-radius: 4px;
+            display: none;
+            pointer-events: none;
+            border: 1px solid #3d3d45;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            line-height: 1.4;
+        }
+        .tooltip-hex { font-family: monospace; color: #ffca28; font-weight: bold; }
+
+        /* ================================================================= */
+        /* 🖨️ A4 橫式滿版列印媒體查詢                                          */
+        /* ================================================================= */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+            body { background: #ffffff; padding: 0; overflow: hidden; }
+            .control-panel, .color-tooltip { display: none !important; }
+            .canvas-container { border: none; background: #ffffff; }
+            canvas {
+                width: 289mm !important;
+                height: 202mm !important;
+                margin: 4mm !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        <div class="info-zone">
+            <h1>Pantone® Style 1000 網頁經典色譜矩陣 (5列×40欄 · 完美除盡無縫版)</h1>
+            <p>規格：40 欄 × 25 列 (每 5 列為一個組別，橫向排滿 40 欄後自動換組，5個組別剛好完美平分 1,000 個色票，無任何占位空洞)</p>
+        </div>
+        <div class="btn-group">
+            <button class="btn-pdf" onclick="exportPDF()">📄 匯出 A4 橫式 PDF</button>
+            <button class="btn-print" onclick="window.print()">🖨️ 直接列印紙張</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="pantoneCanvas"></canvas>
+        <div class="color-tooltip" id="colorTooltip"></div>
+    </div>
+
+    <script>
+        // 【5列×40欄】1,000色完美除盡結構定義
+        const COLS = 40;
+        const ROWS = 25; // 5個大組別 × 5列 = 25列
+        
+        // 畫布基礎物理分辨率定義（在 40 欄架構下，每欄擴張到 30px 寬，提供極佳的色彩視覺面積）
+        const baseWidth = 1200;  // 40 欄 × 每欄 30px
+        const baseHeight = 925;  // 25 列 × 每列 37px (包含色塊 25px + 文字區 12px)
+        const scaleFactor = 3;   // 3倍高清超採樣驅動
+        
+        const canvas = document.getElementById("pantoneCanvas");
+        const ctx = canvas.getContext("2d");
+        const tooltip = document.getElementById("colorTooltip");
+        
+        let colorList = [];
+        let renderMatrix = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+
+        // 初始化 Canvas 解析度
+        canvas.width = baseWidth * scaleFactor;
+        canvas.height = baseHeight * scaleFactor;
+        canvas.style.width = baseWidth + "px";
+        canvas.style.height = baseHeight + "px";
+        ctx.scale(scaleFactor, scaleFactor);
+
+        // 1. 執行 HSL 演算法生成 1000 種顏色
+        function generateColors() {
+            colorList = [];
+            let count = 0;
+            
+            for (let h = 0; h < 360; h += 14.4) {
+                for (let s = 30; s <= 100; s += 10) {
+                    for (let l = 20; l <= 80; l += 15) {
+                        count++;
+                        if (count > 1000) break;
+                        const hex = hslToHex(h, s, l);
+                        colorList.push({
+                            id: count,
+                            hex: hex.toUpperCase()
+                        });
+                    }
+                    if (count > 1000) break;
+                }
+                if (count > 1000) break;
+            }
+        }
+
+        // 2. 【5列×40欄無縫換組演算法】
+        function buildMatrix() {
+            let pmsIdx = 0;
+            const totalSections = 5; // 25 列 / 5 = 5 個完整組別
+
+            for (let section = 0; section < totalSections; section++) {
+                for (let c = 0; c < COLS; c++) {
+                    for (let step = 0; step < 5; step++) {
+                        if (pmsIdx < colorList.length) {
+                            const targetRow = (section * 5) + step;
+                            renderMatrix[targetRow][c] = colorList[pmsIdx];
+                            pmsIdx++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Canvas 高清像素渲染引擎
+        function drawGrid() {
+            const cellW = baseWidth / COLS; // 30px
+            const cellH = baseHeight / ROWS; // 37px
+            const colorH = 25;              // 色彩填滿區高度 (30x25 穩定橫向矩形)
+            
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, baseWidth, baseHeight);
+
+            for (let r = 0; r < ROWS; r++) {
+                // 每過 5 列大單位，自動繪製高質感組別分隔線
+                if (r > 0 && r % 5 === 0) {
+                    ctx.strokeStyle = "#bbbbbf";
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, r * cellH);
+                    ctx.lineTo(baseWidth, r * cellH);
+                    ctx.stroke();
+                }
+
+                for (let c = 0; c < COLS; c++) {
+                    const item = renderMatrix[r][c];
+                    const x = c * cellW;
+                    const y = r * cellH;
+
+                    if (item) {
+                        // A. 上半部：色彩填滿區
+                        ctx.fillStyle = item.hex;
+                        ctx.fillRect(x, y, cellW, colorH);
+
+                        // B. 下半部：微縮標籤資訊區
+                        ctx.fillStyle = "#222222";
+                        ctx.font = "bold 6.5px Arial, sans-serif";
+                        ctx.textAlign = "center";
+                        ctx.fillText(`W-${item.id}`, x + cellW / 2, y + colorH + 10);
+                    }
+                }
+            }
+        }
+
+        // HSL 轉 HEX 輔助函式
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, '0');
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
+        // 4. 網頁滑鼠高敏度查色探針
+        canvas.addEventListener("mousemove", (e) => {
+            if (colorList.length === 0) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const col = Math.floor((x / rect.width) * COLS);
+            const row = Math.floor((y / rect.height) * ROWS);
+
+            if (row < ROWS && col < COLS) {
+                const item = renderMatrix[row][col];
+                if (item) {
+                    tooltip.style.display = "block";
+                    tooltip.style.left = (e.clientX - rect.left + 15) + "px";
+                    tooltip.style.top = (e.clientY - rect.top + 15) + "px";
+                    
+                    const sectionNum = Math.floor(row / 5) + 1;
+                    const innerRow = (row % 5) + 1;
+                    tooltip.innerHTML = `<strong>PANTONE® STYLE</strong><br>色號代碼：<span class="tooltip-hex">WEB-${item.id}</span><br>HEX 數值：<span class="tooltip-hex">${item.hex}</span><br><span style="color:#666">分頁組別：第 ${sectionNum} 組 (欄 ${col+1}, 行 ${innerRow})</span>`;
+                    return;
+                }
+            }
+            tooltip.style.display = "none";
+        });
+
+        canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
+
+        // 5. jsPDF 高清晰度 PDF 匯出
+        function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: "landscape",
+                unit: "mm",
+                format: "a4"
+            });
+            const imgData = canvas.toDataURL("image/png", 1.0);
+            pdf.addImage(imgData, "PNG", 4, 4, 289, 202); // 四周精準留白 4mm 印刷物理防線
+            pdf.save("Pantone_1000_5x40_Perfect_A4.pdf");
+        }
+
+        // 啟動程序
+        generateColors();
+        buildMatrix();
+        drawGrid();
+    </script>
+</body>
+</html>
