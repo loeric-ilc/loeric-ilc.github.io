@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>國小注音描紅練習簿產生器</title>
+<style>
+  :root {
+    --box-size: 100px; /* 預設 100px 等比例 */
+    --line-color: #29b6f6; /* 藍色十字線與邊框 */
+    --zhuyin-color: #f8a5c2; /* 範例淺粉紅色 */
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background-color: #eef2f7;
+    margin: 0;
+    padding: 24px 16px;
+  }
+
+  .app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* 操作面板 */
+  .control-panel {
+    background: #ffffff;
+    padding: 20px 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .control-group input[type="range"] {
+    width: 140px;
+    cursor: pointer;
+  }
+
+  .control-group input[type="number"] {
+    width: 65px;
+    padding: 6px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 70px;
+    padding: 10px;
+    font-size: 15px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  /* 課本語詞庫按鈕區 */
+  .word-bank {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+
+  .word-bank-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .lesson-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .lesson-btn {
+    background: #e2e8f0;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .lesson-btn.active, .lesson-btn:hover {
+    background: #0284c7;
+    color: #fff;
+  }
+
+  .words-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 110px;
+    overflow-y: auto;
+  }
+
+  .word-tag {
+    background: #fff;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .word-tag:hover {
+    background: #e0f2fe;
+  }
+
+  .action-btns {
+    display: flex;
+    gap: 12px;
+  }
+
+  button.btn-primary {
+    background: #0284c7;
+    color: #fff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  button.btn-primary:hover {
+    background: #0369a1;
+  }
+
+  button.btn-secondary {
+    background: #475569;
+    color: #fff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  button.btn-secondary:hover {
+    background: #334155;
+  }
+
+  /* 紙張預覽區 (由右至左呈現 6 欄) */
+  .sheet-wrapper {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 30px;
+  }
+
+  .sheet {
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    padding: 30px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row-reverse; /* 由右至左排列六欄 */
+    gap: 12px;
+    width: fit-content;
+  }
+
+  /* 每一欄 */
+  .sheet-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 注音練習格子 (等比例正方形，中央十字虛線) */
+  .grid-box {
+    width: var(--box-size);
+    height: var(--box-size);
+    border: 2px solid var(--line-color);
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: -2px; /* 消除相鄰重疊線 */
+    background: #ffffff;
+  }
+
+  .sheet-column .grid-box:first-child {
+    margin-top: 0;
+  }
+
+  /* 十字虛線 - 垂直虛線 */
+  .grid-box::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    border-left: 1.5px dashed var(--line-color);
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* 十字虛線 - 水平虛線 */
+  .grid-box::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 0;
+    border-top: 1.5px dashed var(--line-color);
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* 注音符號本體樣式 (淺粉紅色、等比例縮放) */
+  .zhuyin-wrapper {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--zhuyin-color);
+    font-family: "BiauKai", "DFKai-SB", "KaiTi", "標楷體", sans-serif;
+    font-weight: 900;
+    user-select: none;
+  }
+
+  /* 輕聲符號置頂 (第一符號上方) */
+  .tone-top {
+    position: absolute;
+    top: calc(var(--box-size) * -0.16);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: calc(var(--box-size) * 0.18);
+    line-height: 1;
+  }
+
+  /* 注音本體字元直列 */
+  .zhuyin-chars {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .char-unit {
+    position: relative;
+    font-size: calc(var(--box-size) * 0.32); /* 跟隨格子等比放大縮小 */
+    line-height: 0.96;
+    height: calc(var(--box-size) * 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 聲調 (二、三、四聲)：精確位在第二個(或第三個/最後一個)符號的右上方 */
+  .tone-side {
+    position: absolute;
+    left: 80%;
+    top: -30%;
+    font-size: calc(var(--box-size) * 0.22);
+    line-height: 1;
+    margin-left: 2px;
+  }
+
+  /* 列印模式設定 */
+  @media print {
+    body {
+      background: none;
+      padding: 0;
+    }
+    .control-panel {
+      display: none;
+    }
+    .sheet-wrapper {
+      padding: 0;
+      overflow: visible;
+    }
+    .sheet {
+      box-shadow: none;
+      padding: 0;
+      margin: 0 auto;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 1cm;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="control-panel">
+    <div class="panel-row">
+      <div class="control-group">
+        <label for="sizeSlider">格子尺寸 (等比例):</label>
+        <input type="range" id="sizeSlider" min="50" max="150" value="100">
+        <span id="sizeValue" style="font-weight: bold; color: #0284c7;">100px</span>
+      </div>
+      <div class="control-group">
+        <label for="rowsInput">每欄格數:</label>
+        <input type="number" id="rowsInput" min="4" max="16" value="8">
+      </div>
+      <div class="control-group">
+        <label>固定欄數: <strong>6 欄 (由右至左)</strong></label>
+      </div>
+      <div class="action-btns">
+        <button class="btn-primary" onclick="renderSheet()">更新練習格</button>
+        <button class="btn-secondary" onclick="window.print()">列印 / 存為 PDF</button>
+      </div>
+    </div>
+
+    <!-- 內建文章詞語庫 (已去重) -->
+    <div class="word-bank">
+      <div class="word-bank-header">
+        <span>📖 文章語詞庫（已去重，點擊切換課程快速填入 6 欄）：</span>
+      </div>
+      <div class="lesson-tabs" id="lessonTabs"></div>
+      <div class="words-list" id="wordsList"></div>
+    </div>
+
+    <div>
+      <div style="font-size: 14px; margin-bottom: 4px; color: #475569; font-weight: 500;">
+        每欄語詞內容（一行一個語詞，自動換欄顯示；支援中文或直接輸入注音如 ㄇㄠˋ）：
+      </div>
+      <textarea id="inputText" placeholder="請輸入語詞，每行一個詞，將依序由右至左換欄顯示..."></textarea>
+    </div>
+  </div>
+
+  <!-- 六欄直書練習紙張 -->
+  <div class="sheet-wrapper">
+    <div class="sheet" id="sheet"></div>
+  </div>
+</div>
+
+<script>
+// 文章中去重整理的九篇課文語詞庫
+const lessonData = [
+  {
+    title: "一 貓咪",
+    words: ["貓咪", "咪咪咪", "逼", "貓咪弟弟", "跑第一"]
+  },
+  {
+    title: "二 鵝寶寶",
+    words: ["鵝寶寶", "鵝鵝鵝", "鵝媽媽", "哈哈哈", "好得意", "孵出", "五隻"]
+  },
+  {
+    title: "三 河馬和河狸",
+    words: ["河馬和河狸", "河馬要去泡澡", "半路遇到河狸", "喔", "河狸", "忙著築巢"]
+  },
+  {
+    title: "四 笑嘻嘻",
+    words: ["笑嘻嘻", "背著書包", "手拉手", "一二一", "好歡喜"]
+  },
+  {
+    title: "五 翹翹板",
+    words: ["翹翹板", "好朋友", "一起來玩", "上上下下", "高高低低", "好像小鳥", "飛"]
+  },
+  {
+    title: "六 謝謝老師",
+    words: ["謝謝老師", "我要送老師", "一朵小紅花", "教我讀書", "也謝謝老師", "教我畫畫"]
+  },
+  {
+    title: "七 龜兔賽跑",
+    words: ["龜兔賽跑", "烏龜兔子來比賽", "看誰跑得快", "兔子領先", "哈哈笑", "樹下睡午覺", "烏龜落後", "不氣餒", "跟在後面", "追追追"]
+  },
+  {
+    title: "八 拔蘿蔔",
+    words: ["拔蘿蔔", "菜園裡", "長出大蘿蔔", "兔子拔不動", "大家快快來", "大象拉著黃牛", "黃牛拉著浣熊", "浣熊拉著兔子", "嘿唷嘿唷", "好熱鬧", "捲起袖子", "大家一起"]
+  },
+  {
+    title: "九 動物狂歡會",
+    words: ["動物狂歡會", "山崖下", "大家開心來慶祝", "小熊滾大球", "馴鹿敲大鼓", "孔雀變魔術", "青蛙大合唱", "嘓嘓嘓", "咚咚咚", "大家的表演", "真精采"]
+  }
+];
+
+// 專屬注音字典 (包含文章內所有出現之中文字)
+const zhuyinDict = {
+  "貓": "ㄇㄠ", "咪": "ㄇㄧ", "逼": "ㄅㄧ", "弟": "ㄉㄧˋ", "跑": "ㄆㄠˇ", "第": "ㄉㄧˋ",
+  "一": "ㄧ", "二": "ㄦˋ", "鵝": "ㄜˊ", "寶": "ㄅㄠˇ", "媽": "ㄇㄚ", "哈": "ㄏㄚ",
+  "好": "ㄏㄠˇ", "得": "ㄉㄜˊ", "意": "ㄧˋ", "孵": "ㄈㄨ", "出": "ㄔㄨ", "五": "ㄨˇ",
+  "隻": "ㄓ", "河": "ㄏㄜˊ", "馬": "ㄇㄚˇ", "和": "ㄏㄢˋ", "要": "ㄧㄠˋ", "去": "ㄑㄩˋ",
+  "泡": "ㄆㄠˋ", "澡": "ㄗㄠˇ", "半": "ㄅㄢˋ", "路": "ㄌㄨˋ", "遇": "ㄩˋ", "到": "ㄉㄠˋ",
+  "狸": "ㄌㄧˊ", "喔": "ㄛ", "忙": "ㄇㄤˊ", "著": "˙ㄓㄜ", "築": "ㄓㄨˊ", "巢": "ㄔㄠˊ",
+  "笑": "ㄒㄧㄠˋ", "嘻": "ㄒㄧ", "背": "ㄅㄟ", "書": "ㄕㄨ", "包": "ㄅㄠ", "手": "ㄕㄡˇ",
+  "拉": "ㄌㄚ", "歡": "ㄏㄨㄢ", "喜": "ㄒㄧˇ", "翹": "ㄑㄧㄠˋ", "板": "ㄅㄢˇ", "朋": "ㄆㄥˊ",
+  "友": "ㄧㄡˇ", "起": "ㄑㄧˇ", "來": "ㄌㄞˊ", "玩": "ㄨㄢˊ", "上": "ㄕㄤˋ", "下": "ㄒㄧㄚˋ",
+  "高": "ㄍㄠ", "低": "ㄉㄧ", "像": "ㄒㄧㄤˋ", "鳥": "ㄋㄧㄠˇ", "飛": "ㄈㄟ", "謝": "ㄒㄧㄝˋ",
+  "老": "ㄌㄠˇ", "師": "ㄕ", "我": "ㄨㄛˇ", "送": "ㄙㄨㄥˋ", "朵": "ㄉㄨㄛˇ", "紅": "ㄏㄨㄥˊ",
+  "花": "ㄏㄨㄚ", "教": "ㄐㄧㄠ", "讀": "ㄉㄨˊ", "也": "ㄧㄝˇ", "畫": "ㄏㄨㄚˋ", "龜": "ㄍㄨㄟ",
+  "兔": "ㄊㄨˋ", "賽": "ㄙㄞˋ", "比": "ㄅㄧˇ", "看": "ㄎㄢˋ", "誰": "ㄕㄟˊ", "快": "ㄎㄨㄞˋ",
+  "領": "ㄌㄧㄥˇ", "先": "ㄒㄧㄢ", "樹": "ㄕㄨˋ", "睡": "ㄕㄨㄟˋ", "午": "ㄨˇ", "覺": "ㄐㄧㄠˋ",
+  "落": "ㄌㄨㄛˋ", "後": "ㄏㄡˋ", "不": "ㄅㄨˋ", "餒": "ㄋㄟˇ", "跟": "ㄍㄣ", "在": "ㄗㄞˋ",
+  "面": "ㄇㄧㄢˋ", "追": "ㄓㄨㄟ", "拔": "ㄅㄚˊ", "蘿": "ㄌㄨㄛˊ", "蔔": "˙ㄅㄛ", "菜": "ㄘㄞˋ",
+  "園": "ㄩㄢˊ", "裡": "ㄌㄧˇ", "長": "ㄓㄤˇ", "動": "ㄉㄨㄥˋ", "大": "ㄉㄚˋ", "家": "ㄐㄧㄚ",
+  "象": "ㄒㄧㄤˋ", "黃": "ㄏㄨㄤˊ", "牛": "ㄋㄧㄡˊ", "浣": "ㄏㄨㄢˇ", "熊": "ㄒㄩㄥˊ", "嘿": "ㄏㄟ",
+  "唷": "ㄧㄛ", "熱": "ㄖㄜˋ", "鬧": "ㄋㄠˋ", "捲": "ㄐㄩㄢˇ", "袖": "ㄒㄧㄡˋ", "子": "˙ㄗ",
+  "狂": "ㄎㄨㄤˊ", "會": "ㄏㄨㄟˋ", "山": "ㄕㄢ", "崖": "ㄧㄚˊ", "開": "ㄎㄞ", "心": "ㄒㄧㄣ",
+  "慶": "ㄑㄧㄥˋ", "祝": "ㄓㄨˋ", "滾": "ㄍㄨㄣˇ", "球": "ㄑㄧㄡˊ", "馴": "ㄒㄩㄣˊ", "鹿": "ㄌㄨˋ",
+  "敲": "ㄑㄧㄠ", "鼓": "ㄍㄨˇ", "孔": "ㄎㄨㄥˇ", "雀": "ㄑㄩㄝˋ", "變": "ㄅㄧㄢˋ", "魔": "ㄇㄛˊ",
+  "術": "ㄕㄨˋ", "青": "ㄑㄧㄥ", "蛙": "ㄨㄚ", "合": "ㄏㄜˊ", "唱": "ㄔㄤˋ", "嘓": "ㄍㄨㄛ",
+  "咚": "ㄉㄨㄥ", "表": "ㄅㄧㄠˇ", "演": "ㄧㄢˇ", "真": "ㄓㄣ", "精": "ㄐㄧㄥ", "采": "ㄘㄞˇ","小": "ㄒㄧㄠˇ",
+  "氣": "ㄑㄧˋ"
+};
+
+// 解析個別注音與聲調
+function parseSingleZhuyin(str) {
+  let tones = ["ˊ", "ˇ", "ˋ", "˙"];
+  let tone = "";
+  let chars = [];
+
+  for (let ch of str) {
+    if (tones.includes(ch)) {
+      tone = ch;
+    } else if (ch.match(/[\u3105-\u3129\u31A0-\u31BA]/)) {
+      chars.push(ch);
+    }
+  }
+  return { chars, tone };
+}
+
+// 將中文字詞或直接輸入的注音字串轉為單字注音陣列
+function convertWordToZhuyinList(wordStr) {
+  let list = [];
+  let buffer = "";
+
+  for (let i = 0; i < wordStr.length; i++) {
+    const ch = wordStr[i];
+    if (ch.trim() === "") continue;
+
+    if (zhuyinDict[ch]) {
+      if (buffer) {
+        list.push(parseSingleZhuyin(buffer));
+        buffer = "";
+      }
+      list.push(parseSingleZhuyin(zhuyinDict[ch]));
+    } else if (ch.match(/[\u3105-\u3129\u31A0-\u31BAˊˇˋ˙]/)) {
+      // 若為直接輸入注音模式
+      if (["ˊ", "ˇ", "ˋ"].includes(ch)) {
+        buffer += ch;
+        list.push(parseSingleZhuyin(buffer));
+        buffer = "";
+      } else if (ch === "˙") {
+        buffer = ch + buffer;
+      } else {
+        // 如果下一個字元不是韻母也不是聲調，或者已經有一組注音
+        buffer += ch;
+      }
+    }
+  }
+  if (buffer) {
+    list.push(parseSingleZhuyin(buffer));
+  }
+  return list;
+}
+
+// 建立單一注音格子 (十字虛線、淺粉紅注音、聲調在第2或第3個符號右上方)
+function createGridBox(zhuyinObj) {
+  const box = document.createElement("div");
+  box.className = "grid-box";
+
+  if (zhuyinObj && zhuyinObj.chars.length > 0) {
+    const wrap = document.createElement("div");
+    wrap.className = "zhuyin-wrapper";
+
+    // 輕聲置於第一個符號正上方
+    if (zhuyinObj.tone === "˙") {
+      const toneTop = document.createElement("div");
+      toneTop.className = "tone-top";
+      toneTop.textContent = "●"; // 輕聲圓點
+      wrap.appendChild(toneTop);
+    }
+
+    const charsContainer = document.createElement("div");
+    charsContainer.className = "zhuyin-chars";
+
+    const totalChars = zhuyinObj.chars.length;
+    zhuyinObj.chars.forEach((c, idx) => {
+      const charUnit = document.createElement("div");
+      charUnit.className = "char-unit";
+      charUnit.textContent = c;
+
+      // 聲調 (二、三、四聲)：放置於第 2 或第 3 個符號 (即最後一個符號) 的右上方
+      if (["ˊ", "ˇ", "ˋ"].includes(zhuyinObj.tone) && idx === totalChars - 1) {
+        const toneSide = document.createElement("div");
+        toneSide.className = "tone-side";
+        toneSide.textContent = zhuyinObj.tone;
+        charUnit.appendChild(toneSide);
+      }
+
+      charsContainer.appendChild(charUnit);
+    });
+
+    wrap.appendChild(charsContainer);
+    box.appendChild(wrap);
+  }
+
+  return box;
+}
+
+// 產生六欄直書排版 (每個語詞獨立換欄)
+function renderSheet() {
+  const textVal = document.getElementById("inputText").value;
+  const rows = parseInt(document.getElementById("rowsInput").value, 10) || 8;
+  const totalColumns = 6;
+
+  // 每一行視為一個獨立語詞
+  const lines = textVal.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = "";
+
+  for (let col = 0; col < totalColumns; col++) {
+    const colDiv = document.createElement("div");
+    colDiv.className = "sheet-column";
+
+    const currentWord = lines[col] || "";
+    const zhuyinItems = convertWordToZhuyinList(currentWord);
+
+    // 建立該欄的每一格 (填滿設定格數)
+    for (let r = 0; r < rows; r++) {
+      const zhuyinObj = zhuyinItems[r] || null;
+      colDiv.appendChild(createGridBox(zhuyinObj));
+    }
+
+    sheet.appendChild(colDiv);
+  }
+}
+
+// 初始化課本語詞庫選單
+function initWordBank() {
+  const tabsContainer = document.getElementById("lessonTabs");
+  const wordsListContainer = document.getElementById("wordsList");
+
+  lessonData.forEach((lesson, index) => {
+    const btn = document.createElement("button");
+    btn.className = `lesson-btn ${index === 0 ? "active" : ""}`;
+    btn.textContent = lesson.title;
+    btn.onclick = () => {
+      document.querySelectorAll(".lesson-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      showLessonWords(lesson);
+    };
+    tabsContainer.appendChild(btn);
+  });
+
+  // 預設載入第一課
+  showLessonWords(lessonData[0]);
+}
+
+function showLessonWords(lesson) {
+  const wordsListContainer = document.getElementById("wordsList");
+  wordsListContainer.innerHTML = "";
+
+  // 填入該課所有語詞（一行一詞，填入 6 欄）
+  const autoFillBtn = document.createElement("button");
+  autoFillBtn.className = "word-tag";
+  autoFillBtn.style.background = "#0284c7";
+  autoFillBtn.style.color = "#ffffff";
+  autoFillBtn.style.fontWeight = "bold";
+  autoFillBtn.textContent = "⚡ 填入整課語詞至六欄";
+  autoFillBtn.onclick = () => {
+    document.getElementById("inputText").value = lesson.words.slice(0, 6).join("\n");
+    renderSheet();
+  };
+  wordsListContainer.appendChild(autoFillBtn);
+
+  lesson.words.forEach(w => {
+    const tag = document.createElement("span");
+    tag.className = "word-tag";
+    tag.textContent = w;
+    tag.title = "點擊加入輸入框";
+    tag.onclick = () => {
+      const txt = document.getElementById("inputText");
+      txt.value = (txt.value ? txt.value + "\n" : "") + w;
+      renderSheet();
+    };
+    wordsListContainer.appendChild(tag);
+  });
+
+  // 預設將該課填入輸入框
+  document.getElementById("inputText").value = lesson.words.slice(0, 6).join("\n");
+  renderSheet();
+}
+
+// 尺寸滑桿等比例縮放監聽 (同時縮放格子邊長與注音字體)
+const sizeSlider = document.getElementById("sizeSlider");
+sizeSlider.addEventListener("input", (e) => {
+  const val = e.target.value;
+  document.documentElement.style.setProperty("--box-size", val + "px");
+  document.getElementById("sizeValue").textContent = val + "px";
+});
+
+document.getElementById("rowsInput").addEventListener("input", renderSheet);
+document.getElementById("inputText").addEventListener("input", renderSheet);
+
+// 頁面啟動
+window.onload = () => {
+  initWordBank();
+};
+</script>
+</body>
+</html>
